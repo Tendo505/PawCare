@@ -1,0 +1,26 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.PawCare" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/paw_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/paw_secondary</item>
+        <item name="colorSurface">@color/paw_surface</item>
+        <item name="colorOnSurface">@color/paw_text</item>
+        <item name="android:colorAccent">@color/paw_primary</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@color/paw_surface</item>
+        <item name="android:navigationBarColor">@color/white</item>
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.PawCare.Small</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.PawCare.Medium</item>
+    </style>
+
+    <style name="Theme.PawCare" parent="Base.Theme.PawCare" />
+
+    <style name="ShapeAppearance.PawCare.Small" parent="ShapeAppearance.Material3.Corner.Small">
+        <item name="cornerSize">12dp</item>
+    </style>
+
+    <style name="ShapeAppearance.PawCare.Medium" parent="ShapeAppearance.Material3.Corner.Medium">
+        <item name="cornerSize">20dp</item>
+    </style>
+</resources>

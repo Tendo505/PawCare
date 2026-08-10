@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: pawcare
+      POSTGRES_USER: pawcare
+      POSTGRES_PASSWORD: pawcare_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pawcare-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pawcare -d pawcare"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  ai:
+    build: ./ai-service
+    ports:
+      - "8001:8001"
+    environment:
+      MODEL_PATH: /app/models/pawcare_breed_classifier.keras
+      LABELS_PATH: /app/models/labels.json
+      MODEL_VERSION: oxford-pets-mobilenetv2-v1
+    volumes:
+      - ./ai-service/models:/app/models
+
+  backend:
+    build: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: PawCare API
+      APP_ENV: local
+      APP_KEY: pawcare-dev-key-0123456789abcdef
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: pawcare
+      DB_USERNAME: pawcare
+      DB_PASSWORD: pawcare_secret
+      AI_SERVICE_URL: http://ai:8001
+    command: ["sh", "-c", "php artisan migrate --force && php artisan db:seed --force && php artisan serve --host=0.0.0.0 --port=8000"]
+
+volumes:
+  pawcare-postgres:

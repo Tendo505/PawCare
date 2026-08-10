@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">PawCare</string>
+    <string name="login">Sign in</string>
+    <string name="don_t_have_an_account_sign_up">New to PawCare? Create an account</string>
+    <string name="password">Password</string>
+    <string name="username">Email address</string>
+    <string name="login_to_care_for_your_pets">Every health detail, right at your pawtips.</string>
+    <string name="pawcare">PawCare</string>
+    <string name="register">Create account</string>
+    <string name="full_name">Full name</string>
+    <string name="demo_login">Explore with demo account</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_pets">Pets</string>
+    <string name="nav_health">Health</string>
+    <string name="nav_ai">AI Scan</string>
+</resources>

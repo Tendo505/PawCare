@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-03T15:00:00.000Z" agent="Codex" version="24.7.17" type="device" compressed="false">
+  <diagram id="simple-dfd" name="DFD">
+    <mxGraphModel dx="1400" dy="850" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="850" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="dfd-title" value="PAWCARE DATA FLOW DIAGRAM" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;fontSize=28;fontStyle=1;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="300" y="35" width="800" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="dfd-owner" value="&lt;b&gt;PET OWNER&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=17;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="70" y="310" width="220" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="dfd-system" value="&lt;b&gt;PAWCARE SYSTEM&lt;/b&gt;&lt;br&gt;&lt;br&gt;Account management&lt;br&gt;Pet profiles&lt;br&gt;Health records&lt;br&gt;Appointments and reminders" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=17;fontColor=#000000;align=center;verticalAlign=middle;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="520" y="230" width="360" height="260" as="geometry"/>
+        </mxCell>
+        <mxCell id="dfd-clinic" value="&lt;b&gt;VETERINARY CLINIC&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=17;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="310" width="220" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="dfd-database" value="&lt;b&gt;PAWCARE DATABASE&lt;/b&gt;&lt;br&gt;Users, pets, health records and appointments" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=16;fontColor=#000000;align=center;verticalAlign=middle;size=15;" vertex="1" parent="1">
+          <mxGeometry x="555" y="650" width="290" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="dfd-e1" value="Login, pet and health information" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="dfd-owner" target="dfd-system"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="dfd-e2" value="Dashboard, records and reminders" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="dfd-system" target="dfd-owner"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="450" y="535"/><mxPoint x="180" y="535"/></Array></mxGeometry></mxCell>
+        <mxCell id="dfd-e3" value="Treatment and appointment information" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;startArrow=block;startFill=1;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="dfd-system" target="dfd-clinic"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="dfd-e4" value="Store and retrieve data" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;startArrow=block;startFill=1;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="dfd-system" target="dfd-database"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="simple-erd" name="ERD">
+    <mxGraphModel dx="1700" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1000" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="10"/>
+        <mxCell id="11" parent="10"/>
+        <mxCell id="erd-title" value="PAWCARE ENTITY RELATIONSHIP DIAGRAM" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;fontSize=28;fontStyle=1;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="11">
+          <mxGeometry x="350" y="30" width="1000" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="erd-users" value="&lt;b&gt;USERS&lt;/b&gt;&lt;hr&gt;&lt;b&gt;PK&lt;/b&gt; id&lt;br&gt;name&lt;br&gt;email&lt;br&gt;password" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="11">
+          <mxGeometry x="90" y="250" width="280" height="210" as="geometry"/>
+        </mxCell>
+        <mxCell id="erd-pets" value="&lt;b&gt;PETS&lt;/b&gt;&lt;hr&gt;&lt;b&gt;PK&lt;/b&gt; id&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; user_id&lt;br&gt;name&lt;br&gt;species&lt;br&gt;breed&lt;br&gt;sex&lt;br&gt;birth_date&lt;br&gt;weight_kg&lt;br&gt;notes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="11">
+          <mxGeometry x="500" y="190" width="310" height="340" as="geometry"/>
+        </mxCell>
+        <mxCell id="erd-vacc" value="&lt;b&gt;VACCINATION_RECORDS&lt;/b&gt;&lt;hr&gt;&lt;b&gt;PK&lt;/b&gt; id&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; pet_id&lt;br&gt;vaccine_name&lt;br&gt;administered_date&lt;br&gt;due_date&lt;br&gt;status" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="11">
+          <mxGeometry x="1110" y="100" width="350" height="270" as="geometry"/>
+        </mxCell>
+        <mxCell id="erd-medical" value="&lt;b&gt;MEDICAL_RECORDS&lt;/b&gt;&lt;hr&gt;&lt;b&gt;PK&lt;/b&gt; id&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; pet_id&lt;br&gt;visit_date&lt;br&gt;veterinarian&lt;br&gt;diagnosis&lt;br&gt;treatment" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="11">
+          <mxGeometry x="1110" y="405" width="350" height="260" as="geometry"/>
+        </mxCell>
+        <mxCell id="erd-appt" value="&lt;b&gt;APPOINTMENTS&lt;/b&gt;&lt;hr&gt;&lt;b&gt;PK&lt;/b&gt; id&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; pet_id&lt;br&gt;appointment_date&lt;br&gt;appointment_time&lt;br&gt;clinic&lt;br&gt;reason&lt;br&gt;status" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="11">
+          <mxGeometry x="1110" y="710" width="350" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="erd-notify" value="&lt;b&gt;NOTIFICATIONS&lt;/b&gt;&lt;hr&gt;&lt;b&gt;PK&lt;/b&gt; id&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; user_id&lt;br&gt;title&lt;br&gt;message&lt;br&gt;scheduled_at&lt;br&gt;read_at" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="11">
+          <mxGeometry x="90" y="650" width="280" height="260" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="erd-e1" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="11" source="erd-users" target="erd-pets"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="erd-e2" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="11" source="erd-users" target="erd-notify"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="erd-e3" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="11" source="erd-pets" target="erd-vacc"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="920" y="235"/></Array></mxGeometry></mxCell>
+        <mxCell id="erd-e4" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="11" source="erd-pets" target="erd-medical"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="erd-e5" value="1 : many" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="11" source="erd-pets" target="erd-appt"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="920" y="850"/></Array></mxGeometry></mxCell>
+
+        <mxCell id="erd-note" value="PK = Primary Key    FK = Foreign Key" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;fontSize=14;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="11">
+          <mxGeometry x="500" y="780" width="310" height="45" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="simple-flowchart" name="Flowchart">
+    <mxGraphModel dx="1250" dy="1050" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1250" pageHeight="1050" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="20"/>
+        <mxCell id="21" parent="20"/>
+        <mxCell id="flow-title" value="PAWCARE SYSTEM FLOWCHART" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;fontSize=28;fontStyle=1;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="225" y="25" width="800" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="flow-start" value="START" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=16;fontStyle=1;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="535" y="95" width="180" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-open" value="Open PawCare application" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="485" y="200" width="280" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-session" value="Already logged in?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="515" y="315" width="220" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-auth" value="Register or log in" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="130" y="335" width="230" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-valid" value="Details valid?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="140" y="480" width="210" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-error" value="Show error message" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="120" y="660" width="250" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-dashboard" value="View dashboard" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=16;fontStyle=1;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="500" y="500" width="250" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-action" value="Choose action" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="520" y="640" width="210" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-manage" value="Manage pet profile, health record or appointment" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="440" y="805" width="370" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-save" value="Save changes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="500" y="935" width="250" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-logout" value="Log out" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=15;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="900" y="655" width="190" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="flow-end" value="END" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=16;fontStyle=1;fontColor=#000000;align=center;verticalAlign=middle;" vertex="1" parent="21">
+          <mxGeometry x="905" y="815" width="180" height="65" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="flow-e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="21" source="flow-start" target="flow-open"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="21" source="flow-open" target="flow-session"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e3" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="21" source="flow-session" target="flow-dashboard"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e4" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="21" source="flow-session" target="flow-auth"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="21" source="flow-auth" target="flow-valid"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e6" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="21" source="flow-valid" target="flow-dashboard"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e7" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="21" source="flow-valid" target="flow-error"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e8" value="Try again" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="21" source="flow-error" target="flow-auth"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="70" y="695"/><mxPoint x="70" y="370"/></Array></mxGeometry></mxCell>
+        <mxCell id="flow-e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="21" source="flow-dashboard" target="flow-action"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e10" value="Manage data" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="21" source="flow-action" target="flow-manage"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e11" value="Logout" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="21" source="flow-action" target="flow-logout"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="21" source="flow-manage" target="flow-save"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="flow-e13" value="Return to dashboard" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#000000;labelBackgroundColor=#FFFFFF;" edge="1" parent="21" source="flow-save" target="flow-dashboard"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="840" y="970"/><mxPoint x="840" y="540"/></Array></mxGeometry></mxCell>
+        <mxCell id="flow-e14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="21" source="flow-logout" target="flow-end"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,68 @@
+@base = http://localhost:8000/api
+@email = demo@pawcare.my
+@password = PawCare123
+@token = paste-token-from-login
+
+### API status
+GET http://localhost:8000/up
+
+### Login
+POST {{base}}/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Dashboard
+GET {{base}}/dashboard
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### List pets
+GET {{base}}/pets
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Add a pet
+POST {{base}}/pets
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Milo",
+  "species": "Cat",
+  "breed": "Siamese",
+  "sex": "Male",
+  "birth_date": "2024-01-15",
+  "weight_kg": 4.2
+}
+
+### Add vaccination (replace pet_id)
+POST {{base}}/vaccinations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "pet_id": 1,
+  "vaccine_name": "Rabies",
+  "administered_date": "2026-07-20",
+  "due_date": "2027-07-20",
+  "clinic": "Happy Tails Veterinary",
+  "status": "Completed"
+}
+
+### AI service readiness
+GET http://localhost:8001/health
+
+### AI prediction
+POST http://localhost:8001/predict
+Content-Type: multipart/form-data; boundary=PetBoundary
+
+--PetBoundary
+Content-Disposition: form-data; name="image"; filename="pet.jpg"
+Content-Type: image/jpeg
+
+< ./pet.jpg
+--PetBoundary--

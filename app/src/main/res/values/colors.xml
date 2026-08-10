@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="paw_primary">#146C5A</color>
+    <color name="paw_primary_dark">#0C4A3E</color>
+    <color name="paw_secondary">#F2A65A</color>
+    <color name="paw_surface">#F7FAF8</color>
+    <color name="paw_surface_variant">#E6F1ED</color>
+    <color name="paw_text">#18312C</color>
+    <color name="paw_muted">#657A75</color>
+    <color name="paw_danger">#B3261E</color>
+</resources>
