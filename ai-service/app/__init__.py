@@ -1,1 +1,0 @@
-"""PawCare breed recognition service."""

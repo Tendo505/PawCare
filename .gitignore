@@ -1,45 +1,15 @@
-*.iml
+# PawCare backend / private components
+backend/
+ai-service/
+docs/
+output/
+outputs/
+compose.yaml
+PROJECT_VARIANTS.md
+
+# Android generated files
 .gradle/
 .idea/
 local.properties
 **/build/
-captures/
-.externalNativeBuild/
-.cxx/
-
-# Environment and credentials
-.env
-.env.*
-!.env.example
-!**/.env.example
-secrets.properties
-google-services.json
-*service-account*.json
-*.jks
-*.keystore
-*.pem
-*.p12
-
-backend/.env
-backend/vendor/
-backend/.phpunit.result.cache
-backend/bootstrap/cache/*.php
-backend/storage/logs/*
-backend/storage/framework/cache/*
-backend/storage/framework/sessions/*
-backend/storage/framework/views/*
-
-**/.venv*/
-ai-service/__pycache__/
-ai-service/**/__pycache__/
-ai-service/.pytest_cache/
-ai-service/models/*.keras
-*.tflite
-
-# Generated and operating-system files
-*.log
-*.hprof
-outputs/**/*.inspect.ndjson
-.DS_Store
-Thumbs.db
-Desktop.ini
+*.iml
