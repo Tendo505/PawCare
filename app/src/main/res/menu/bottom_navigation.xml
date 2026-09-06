@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- HOME: opens dashboard totals and upcoming reminders. -->
     <item android:id="@+id/nav_home" android:icon="@drawable/ic_home" android:title="@string/nav_home" />
+    <!-- PETS: opens pet profile create, read, update, and delete functions. -->
     <item android:id="@+id/nav_pets" android:icon="@drawable/ic_pets" android:title="@string/nav_pets" />
+    <!-- HEALTH: opens vaccination, medical record, and appointment functions. -->
     <item android:id="@+id/nav_health" android:icon="@drawable/ic_health" android:title="@string/nav_health" />
+    <!-- AI: opens image selection, breed estimation, and saved prediction history. -->
     <item android:id="@+id/nav_ai" android:icon="@drawable/ic_scan" android:title="@string/nav_ai" />
 </menu>

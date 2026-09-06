@@ -10,6 +10,7 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">@color/paw_surface</item>
         <item name="android:navigationBarColor">@color/white</item>
+        <item name="android:windowBackground">@color/paw_surface</item>
         <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.PawCare.Small</item>
         <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.PawCare.Medium</item>
     </style>

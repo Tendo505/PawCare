@@ -5,7 +5,6 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/paw_surface"
     android:fillViewport="true"
     tools:context=".MainActivity">
 
@@ -24,7 +23,7 @@
             android:layout_height="76dp"
             android:background="@drawable/login_badge"
             android:gravity="center"
-            android:text="🐾"
+            android:text="@string/paw_print"
             android:textSize="38sp" />
 
         <TextView
@@ -67,7 +66,7 @@
                     android:id="@+id/formTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Welcome back"
+                    android:text="@string/welcome_back"
                     android:textColor="@color/paw_text"
                     android:textSize="23sp"
                     android:textStyle="bold" />
@@ -130,20 +129,11 @@
                     android:textSize="16sp"
                     app:cornerRadius="16dp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/demoButton"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="10dp"
-                    android:text="@string/demo_login"
-                    app:cornerRadius="16dp" />
-
                 <TextView
                     android:id="@+id/signUpText"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="12dp"
                     android:gravity="center"
                     android:text="@string/don_t_have_an_account_sign_up"
                     android:textColor="@color/paw_primary"
@@ -156,7 +146,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
             android:gravity="center"
-            android:text="For guidance only — always consult a veterinarian for diagnosis."
+            android:text="@string/veterinarian_disclaimer"
             android:textColor="@color/paw_muted"
             android:textSize="12sp" />
     </LinearLayout>

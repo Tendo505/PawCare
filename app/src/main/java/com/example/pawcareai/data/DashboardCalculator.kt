@@ -1,16 +1,25 @@
 package com.example.pawcareai.data
 
-object DashboardCalculator {
+object DashboardCalculator
+{
+    // Calculate the dashboard totals from the current account's records.
     fun calculate(
         pets: List<Pet>,
         vaccinations: List<VaccinationRecord>,
         appointments: List<Appointment>,
         medicalRecords: List<MedicalRecord>
-    ): DashboardStats = DashboardStats(
-        petCount = pets.size,
-        upcomingVaccinations = vaccinations.count { it.status != "Completed" },
-        scheduledAppointments = appointments.count { it.status == "Scheduled" },
-        medicalRecordCount = medicalRecords.size
-    )
-}
+    ): DashboardStats
+    {
+        val petCount = pets.size
+        val upcomingVaccinations = vaccinations.count { vaccination -> vaccination.status != "Completed" }
+        val scheduledAppointments = appointments.count { appointment -> appointment.status == "Scheduled" }
+        val medicalRecordCount = medicalRecords.size
 
+        return DashboardStats(
+            petCount = petCount,
+            upcomingVaccinations = upcomingVaccinations,
+            scheduledAppointments = scheduledAppointments,
+            medicalRecordCount = medicalRecordCount
+        )
+    }
+}

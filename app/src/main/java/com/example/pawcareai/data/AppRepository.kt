@@ -1,221 +1,830 @@
 package com.example.pawcareai.data
 
 import android.content.Context
-import com.google.gson.Gson
-import java.security.MessageDigest
-import java.time.LocalDate
-import java.util.UUID
+import android.content.SharedPreferences
+import com.example.pawcareai.network.ApiAiPrediction
+import com.example.pawcareai.network.ApiAppointment
+import com.example.pawcareai.network.ApiMedicalRecord
+import com.example.pawcareai.network.ApiMessage
+import com.example.pawcareai.network.ApiPet
+import com.example.pawcareai.network.ApiSystemHealth
+import com.example.pawcareai.network.ApiUser
+import com.example.pawcareai.network.ApiVaccination
+import com.example.pawcareai.network.AppointmentRequest
+import com.example.pawcareai.network.AuthRequest
+import com.example.pawcareai.network.MedicalRecordRequest
+import com.example.pawcareai.network.NetworkModule
+import com.example.pawcareai.network.PetRequest
+import com.example.pawcareai.network.PawCareApi
+import com.example.pawcareai.network.VaccinationRequest
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
-class AppRepository(context: Context) {
-    private val preferences = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private val gson = Gson()
+class ApiRequestException(
+    message: String,
+    val statusCode: Int,
+    val fieldErrors: Map<String, String> = emptyMap()
+) : IllegalStateException(message)
 
-    init {
-        ensureDemoAccount()
+class AppRepository(context: Context)
+{
+    // Authentication settings and API connection
+    private val preferences: SharedPreferences = context.applicationContext
+        .getSharedPreferences(AUTH_PREFERENCES, Context.MODE_PRIVATE)
+    private val api: PawCareApi = NetworkModule.backend
+
+    // Current account and records loaded from PostgreSQL
+    private var activeUser: UserAccount? = null
+    private var petCache: List<Pet> = emptyList()
+    private var vaccinationCache: List<VaccinationRecord> = emptyList()
+    private var medicalRecordCache: List<MedicalRecord> = emptyList()
+    private var appointmentCache: List<Appointment> = emptyList()
+    private var predictionCache: List<BreedPrediction> = emptyList()
+    private var systemHealthCache: SystemHealth? = null
+
+    init
+    {
+        // Remove records from the old offline version
+        val legacyPreferences: SharedPreferences = context.applicationContext
+            .getSharedPreferences(LEGACY_DATA_PREFERENCES, Context.MODE_PRIVATE)
+        val legacyEditor: SharedPreferences.Editor = legacyPreferences.edit()
+        legacyEditor.clear()
+        legacyEditor.apply()
+
+        NetworkModule.setAuthToken(preferences.getString(KEY_TOKEN, null))
     }
 
+    // Read the signed-in account
     val currentUser: UserAccount?
-        get() {
-            val email = preferences.getString(KEY_SESSION, null) ?: return null
-            return users().firstOrNull { it.email.equals(email, ignoreCase = true) }
+        get()
+        {
+            return activeUser
         }
 
-    fun register(name: String, email: String, password: String): Result<UserAccount> {
-        val cleanName = name.trim()
-        val cleanEmail = email.trim().lowercase()
-        if (cleanName.length < 2) return Result.failure(IllegalArgumentException("Enter your full name."))
-        if (!EMAIL_REGEX.matches(cleanEmail)) return Result.failure(IllegalArgumentException("Enter a valid email address."))
-        if (password.length < 8) return Result.failure(IllegalArgumentException("Password must contain at least 8 characters."))
-
-        val accounts = users().toMutableList()
-        if (accounts.any { it.email.equals(cleanEmail, ignoreCase = true) }) {
-            return Result.failure(IllegalArgumentException("An account already exists for this email."))
+    // Check whether an authentication token has been saved
+    val hasSession: Boolean
+        get()
+        {
+            val token: String? = preferences.getString(KEY_TOKEN, null)
+            return !token.isNullOrBlank()
         }
-        val salt = UUID.randomUUID().toString()
-        val account = UserAccount(cleanName, cleanEmail, salt, hash(salt, password))
-        accounts += account
-        write(KEY_USERS, accounts)
-        preferences.edit().putString(KEY_SESSION, cleanEmail).apply()
-        return Result.success(account)
-    }
 
-    fun login(email: String, password: String): Result<UserAccount> {
-        val account = users().firstOrNull { it.email.equals(email.trim(), ignoreCase = true) }
-            ?: return Result.failure(IllegalArgumentException("Email or password is incorrect."))
-        if (account.passwordHash != hash(account.passwordSalt, password)) {
-            return Result.failure(IllegalArgumentException("Email or password is incorrect."))
+    // Restore the account using its saved token
+    fun restoreSession(onResult: (Result<UserAccount>) -> Unit)
+    {
+        if (!hasSession)
+        {
+            onResult(Result.failure(IllegalStateException("Please sign in.")))
+            return
         }
-        preferences.edit().putString(KEY_SESSION, account.email).apply()
-        if (account.email == DEMO_EMAIL) seedDemoData()
-        return Result.success(account)
+
+        api.me().enqueueResult { result ->
+            result.onSuccess { user ->
+                activeUser = user.toUserAccount()
+            }
+            result.onFailure {
+                clearSession()
+            }
+
+            val accountResult: Result<UserAccount> = result.map { user -> user.toUserAccount() }
+            onResult(accountResult)
+        }
     }
 
-    fun loginDemo(): UserAccount {
-        val account = users().first { it.email == DEMO_EMAIL }
-        preferences.edit().putString(KEY_SESSION, account.email).apply()
-        seedDemoData()
-        return account
+    // Create a new account in PostgreSQL
+    fun register(name: String, email: String, password: String, onResult: (Result<UserAccount>) -> Unit)
+    {
+        val request: AuthRequest = AuthRequest(email.trim().lowercase(), password, name.trim())
+
+        api.register(request).enqueueResult { result ->
+            result.onSuccess { authentication ->
+                acceptAuthentication(authentication.token, authentication.user)
+            }
+
+            val accountResult: Result<UserAccount> = result.map { authentication ->
+                authentication.user.toUserAccount()
+            }
+            onResult(accountResult)
+        }
     }
 
-    fun logout() = preferences.edit().remove(KEY_SESSION).apply()
+    // Sign in and save the returned token
+    fun login(email: String, password: String, onResult: (Result<UserAccount>) -> Unit)
+    {
+        val request: AuthRequest = AuthRequest(email.trim().lowercase(), password)
 
-    fun pets(): List<Pet> {
-        val owner = currentUser?.email ?: return emptyList()
-        return allPets().filter { it.ownerEmail == owner }.sortedBy { it.name.lowercase() }
+        api.login(request).enqueueResult { result ->
+            result.onSuccess { authentication ->
+                acceptAuthentication(authentication.token, authentication.user)
+            }
+
+            val accountResult: Result<UserAccount> = result.map { authentication ->
+                authentication.user.toUserAccount()
+            }
+            onResult(accountResult)
+        }
     }
 
-    fun pet(id: Long): Pet? = pets().firstOrNull { it.id == id }
+    // Sign out and clear the local session
+    fun logout(onComplete: () -> Unit)
+    {
+        if (!hasSession)
+        {
+            clearSession()
+            onComplete()
+            return
+        }
+        api.logout().enqueue(object : Callback<ApiMessage>
+        {
+            override fun onResponse(
+                call: Call<ApiMessage>,
+                response: Response<ApiMessage>
+            )
+            {
+                clearSession()
+                onComplete()
+            }
 
-    fun savePet(pet: Pet): Pet {
-        val owner = requireOwner()
-        val items = allPets().toMutableList()
-        val saved = pet.copy(id = pet.id.takeIf { it > 0 } ?: nextId(), ownerEmail = owner)
-        val index = items.indexOfFirst { it.id == saved.id && it.ownerEmail == owner }
-        if (index >= 0) items[index] = saved else items += saved
-        write(KEY_PETS, items)
-        return saved
+            override fun onFailure(
+                call: Call<ApiMessage>,
+                throwable: Throwable
+            )
+            {
+                clearSession()
+                onComplete()
+            }
+        })
     }
 
-    fun deletePet(id: Long) {
-        val owner = requireOwner()
-        write(KEY_PETS, allPets().filterNot { it.id == id && it.ownerEmail == owner })
-        write(KEY_VACCINATIONS, allVaccinations().filterNot { it.petId == id && it.ownerEmail == owner })
-        write(KEY_RECORDS, allMedicalRecords().filterNot { it.petId == id && it.ownerEmail == owner })
-        write(KEY_APPOINTMENTS, allAppointments().filterNot { it.petId == id && it.ownerEmail == owner })
+    // Read all records before replacing the current cache
+    fun refreshData(onResult: (Result<Unit>) -> Unit)
+    {
+        api.pets().enqueueResult { result ->
+            result.onSuccess { pets ->
+                loadVaccinations(pets, onResult)
+            }
+            result.onFailure { error ->
+                onResult(Result.failure(error))
+            }
+        }
     }
 
-    fun vaccinations(): List<VaccinationRecord> {
-        val owner = currentUser?.email ?: return emptyList()
-        return allVaccinations().filter { it.ownerEmail == owner }.sortedBy { it.dueDate }
+    // Read vaccination records
+    private fun loadVaccinations(pets: List<ApiPet>, onResult: (Result<Unit>) -> Unit)
+    {
+        api.vaccinations().enqueueResult { result ->
+            result.onSuccess { vaccinations ->
+                loadMedicalRecords(pets, vaccinations, onResult)
+            }
+            result.onFailure { error ->
+                onResult(Result.failure(error))
+            }
+        }
     }
 
-    fun saveVaccination(record: VaccinationRecord): VaccinationRecord {
-        val owner = requireOwner()
-        val items = allVaccinations().toMutableList()
-        val saved = record.copy(id = record.id.takeIf { it > 0 } ?: nextId(), ownerEmail = owner)
-        val index = items.indexOfFirst { it.id == saved.id && it.ownerEmail == owner }
-        if (index >= 0) items[index] = saved else items += saved
-        write(KEY_VACCINATIONS, items)
-        return saved
-    }
-
-    fun deleteVaccination(id: Long) = deleteByOwner(KEY_VACCINATIONS, allVaccinations(), id) { it.id to it.ownerEmail }
-
-    fun medicalRecords(): List<MedicalRecord> {
-        val owner = currentUser?.email ?: return emptyList()
-        return allMedicalRecords().filter { it.ownerEmail == owner }.sortedByDescending { it.visitDate }
-    }
-
-    fun saveMedicalRecord(record: MedicalRecord): MedicalRecord {
-        val owner = requireOwner()
-        val items = allMedicalRecords().toMutableList()
-        val saved = record.copy(id = record.id.takeIf { it > 0 } ?: nextId(), ownerEmail = owner)
-        val index = items.indexOfFirst { it.id == saved.id && it.ownerEmail == owner }
-        if (index >= 0) items[index] = saved else items += saved
-        write(KEY_RECORDS, items)
-        return saved
-    }
-
-    fun deleteMedicalRecord(id: Long) = deleteByOwner(KEY_RECORDS, allMedicalRecords(), id) { it.id to it.ownerEmail }
-
-    fun appointments(): List<Appointment> {
-        val owner = currentUser?.email ?: return emptyList()
-        return allAppointments().filter { it.ownerEmail == owner }.sortedWith(compareBy({ it.appointmentDate }, { it.appointmentTime }))
-    }
-
-    fun saveAppointment(appointment: Appointment): Appointment {
-        val owner = requireOwner()
-        val items = allAppointments().toMutableList()
-        val saved = appointment.copy(id = appointment.id.takeIf { it > 0 } ?: nextId(), ownerEmail = owner)
-        val index = items.indexOfFirst { it.id == saved.id && it.ownerEmail == owner }
-        if (index >= 0) items[index] = saved else items += saved
-        write(KEY_APPOINTMENTS, items)
-        return saved
-    }
-
-    fun deleteAppointment(id: Long) = deleteByOwner(KEY_APPOINTMENTS, allAppointments(), id) { it.id to it.ownerEmail }
-
-    fun predictions(): List<BreedPrediction> {
-        val owner = currentUser?.email ?: return emptyList()
-        return allPredictions().filter { it.ownerEmail == owner }.sortedByDescending { it.createdAt }
-    }
-
-    fun savePrediction(prediction: BreedPrediction): BreedPrediction {
-        val owner = requireOwner()
-        val items = allPredictions().toMutableList()
-        val saved = prediction.copy(id = nextId(), ownerEmail = owner)
-        items += saved
-        write(KEY_PREDICTIONS, items)
-        return saved
-    }
-
-    fun stats(): DashboardStats = DashboardCalculator.calculate(
-        pets = pets(),
-        vaccinations = vaccinations(),
-        appointments = appointments(),
-        medicalRecords = medicalRecords()
+    // Read medical records
+    private fun loadMedicalRecords(
+        pets: List<ApiPet>,
+        vaccinations: List<ApiVaccination>,
+        onResult: (Result<Unit>) -> Unit
     )
-
-    fun petName(petId: Long): String = pet(petId)?.name ?: "Unknown pet"
-
-    private fun ensureDemoAccount() {
-        val accounts = users().toMutableList()
-        if (accounts.none { it.email == DEMO_EMAIL }) {
-            val salt = UUID.randomUUID().toString()
-            accounts += UserAccount("Aina Rahman", DEMO_EMAIL, salt, hash(salt, DEMO_PASSWORD))
-            write(KEY_USERS, accounts)
+    {
+        api.medicalRecords().enqueueResult { result ->
+            result.onSuccess { medicalRecords ->
+                loadAppointments(pets, vaccinations, medicalRecords, onResult)
+            }
+            result.onFailure { error ->
+                onResult(Result.failure(error))
+            }
         }
     }
 
-    private fun seedDemoData() {
-        if (pets().isNotEmpty()) return
-        val buddy = savePet(Pet(name = "Buddy", species = "Dog", breed = "Golden Retriever", sex = "Male", birthDate = "2022-04-16", weightKg = 28.4, microchipNumber = "MY-DOG-20481", notes = "Friendly; sensitive to chicken-based food."))
-        val luna = savePet(Pet(name = "Luna", species = "Cat", breed = "British Shorthair", sex = "Female", birthDate = "2023-09-08", weightKg = 4.7, notes = "Indoor cat."))
-        saveVaccination(VaccinationRecord(petId = buddy.id, vaccineName = "DHPP Booster", administeredDate = "2025-08-12", dueDate = LocalDate.now().plusDays(12).toString(), clinic = "Happy Tails Veterinary", status = "Upcoming"))
-        saveVaccination(VaccinationRecord(petId = luna.id, vaccineName = "FVRCP", administeredDate = LocalDate.now().minusMonths(11).toString(), dueDate = LocalDate.now().plusMonths(1).toString(), clinic = "Paws & Claws Clinic", status = "Upcoming"))
-        saveMedicalRecord(MedicalRecord(petId = buddy.id, visitDate = LocalDate.now().minusMonths(2).toString(), veterinarian = "Dr. Lim Wei", diagnosis = "Mild dermatitis", treatment = "Medicated shampoo for 14 days", notes = "Symptoms resolved."))
-        saveAppointment(Appointment(petId = buddy.id, appointmentDate = LocalDate.now().plusDays(5).toString(), appointmentTime = "10:30", clinic = "Happy Tails Veterinary", reason = "Annual wellness examination"))
+    // Read appointments
+    private fun loadAppointments(
+        pets: List<ApiPet>,
+        vaccinations: List<ApiVaccination>,
+        medicalRecords: List<ApiMedicalRecord>,
+        onResult: (Result<Unit>) -> Unit
+    )
+    {
+        api.appointments().enqueueResult { result ->
+            result.onSuccess { appointments ->
+                loadPredictions(pets, vaccinations, medicalRecords, appointments, onResult)
+            }
+            result.onFailure { error ->
+                onResult(Result.failure(error))
+            }
+        }
     }
 
-    private fun users(): List<UserAccount> = gson.fromJson(preferences.getString(KEY_USERS, "[]"), Array<UserAccount>::class.java)?.toList().orEmpty()
-    private fun allPets(): List<Pet> = gson.fromJson(preferences.getString(KEY_PETS, "[]"), Array<Pet>::class.java)?.toList().orEmpty()
-    private fun allVaccinations(): List<VaccinationRecord> = gson.fromJson(preferences.getString(KEY_VACCINATIONS, "[]"), Array<VaccinationRecord>::class.java)?.toList().orEmpty()
-    private fun allMedicalRecords(): List<MedicalRecord> = gson.fromJson(preferences.getString(KEY_RECORDS, "[]"), Array<MedicalRecord>::class.java)?.toList().orEmpty()
-    private fun allAppointments(): List<Appointment> = gson.fromJson(preferences.getString(KEY_APPOINTMENTS, "[]"), Array<Appointment>::class.java)?.toList().orEmpty()
-    private fun allPredictions(): List<BreedPrediction> = gson.fromJson(preferences.getString(KEY_PREDICTIONS, "[]"), Array<BreedPrediction>::class.java)?.toList().orEmpty()
-
-    private fun write(key: String, value: Any) = preferences.edit().putString(key, gson.toJson(value)).apply()
-
-    private fun <T> deleteByOwner(key: String, items: List<T>, id: Long, identity: (T) -> Pair<Long, String>) {
-        val owner = requireOwner()
-        write(key, items.filterNot { identity(it).first == id && identity(it).second == owner })
+    // Read prediction history and finish refreshing records
+    private fun loadPredictions(
+        pets: List<ApiPet>,
+        vaccinations: List<ApiVaccination>,
+        medicalRecords: List<ApiMedicalRecord>,
+        appointments: List<ApiAppointment>,
+        onResult: (Result<Unit>) -> Unit
+    )
+    {
+        api.aiPredictions().enqueueResult { result ->
+            result.onSuccess { predictions ->
+                updateCache(pets, vaccinations, medicalRecords, appointments, predictions.data)
+                onResult(Result.success(Unit))
+            }
+            result.onFailure { error ->
+                onResult(Result.failure(error))
+            }
+        }
     }
 
-    private fun nextId(): Long {
-        val value = preferences.getLong(KEY_NEXT_ID, 100L) + 1L
-        preferences.edit().putLong(KEY_NEXT_ID, value).apply()
-        return value
+    // Update the in-memory records after every request succeeds
+    private fun updateCache(
+        pets: List<ApiPet>,
+        vaccinations: List<ApiVaccination>,
+        medicalRecords: List<ApiMedicalRecord>,
+        appointments: List<ApiAppointment>,
+        predictions: List<ApiAiPrediction>
+    )
+    {
+        petCache = pets.map { pet -> pet.toPet() }
+        vaccinationCache = vaccinations.map { record -> record.toVaccinationRecord() }
+        medicalRecordCache = medicalRecords.map { record -> record.toMedicalRecord() }
+        appointmentCache = appointments.map { appointment -> appointment.toAppointment() }
+        predictionCache = predictions.map { prediction -> prediction.toBreedPrediction() }
     }
 
-    private fun requireOwner(): String = currentUser?.email ?: error("A signed-in user is required")
-
-    private fun hash(salt: String, password: String): String {
-        val bytes = MessageDigest.getInstance("SHA-256").digest("$salt:$password".toByteArray())
-        return bytes.joinToString("") { "%02x".format(it) }
+    // Read pets in alphabetical order
+    fun pets(): List<Pet>
+    {
+        return petCache.sortedBy { pet -> pet.name.lowercase() }
     }
 
-    companion object {
-        const val DEMO_EMAIL = "demo@pawcare.my"
-        const val DEMO_PASSWORD = "PawCare123"
-        private const val PREFS = "pawcare_store_v1"
-        private const val KEY_SESSION = "session_email"
-        private const val KEY_USERS = "users"
-        private const val KEY_PETS = "pets"
-        private const val KEY_VACCINATIONS = "vaccinations"
-        private const val KEY_RECORDS = "medical_records"
-        private const val KEY_APPOINTMENTS = "appointments"
-        private const val KEY_PREDICTIONS = "predictions"
-        private const val KEY_NEXT_ID = "next_id"
-        private val EMAIL_REGEX = Regex("^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$", RegexOption.IGNORE_CASE)
+    // Find a pet by its record ID
+    fun pet(id: Long): Pet?
+    {
+        return petCache.firstOrNull { pet -> pet.id == id }
+    }
+
+    // Read vaccinations by due date
+    fun vaccinations(): List<VaccinationRecord>
+    {
+        return vaccinationCache.sortedBy { record -> record.dueDate }
+    }
+
+    // Read the latest medical records first
+    fun medicalRecords(): List<MedicalRecord>
+    {
+        return medicalRecordCache.sortedByDescending { record -> record.visitDate }
+    }
+
+    // Read appointments by date, then time
+    fun appointments(): List<Appointment>
+    {
+        val appointmentOrder: Comparator<Appointment> = compareBy(
+            { appointment -> appointment.appointmentDate },
+            { appointment -> appointment.appointmentTime }
+        )
+        return appointmentCache.sortedWith(appointmentOrder)
+    }
+
+    // Read the latest predictions first
+    fun predictions(): List<BreedPrediction>
+    {
+        return predictionCache.sortedByDescending { prediction -> prediction.createdAt }
+    }
+
+    // Read the most recent connection check
+    fun systemHealth(): SystemHealth?
+    {
+        return systemHealthCache
+    }
+
+    // Check Laravel, PostgreSQL and AI connections
+    fun checkSystemHealth(onResult: (Result<SystemHealth>) -> Unit)
+    {
+        api.systemHealth().enqueueResult { result ->
+            val healthResult: Result<SystemHealth> = result.map { health -> health.toSystemHealth() }
+            healthResult.onSuccess { health ->
+                systemHealthCache = health
+            }
+            healthResult.onFailure {
+                systemHealthCache = SystemHealth(
+                    overall = "unavailable",
+                    laravel = "unavailable",
+                    database = "unknown",
+                    ai = "unknown"
+                )
+            }
+            onResult(healthResult)
+        }
+    }
+
+    // Create or update a pet, then refresh its cached record
+    fun savePet(pet: Pet, onResult: (Result<Pet>) -> Unit)
+    {
+        val saveCall: Call<ApiPet> = if (pet.id > 0)
+        {
+            api.updatePet(pet.id, pet.toRequest())
+        }
+        else
+        {
+            api.createPet(pet.toRequest())
+        }
+
+        saveCall.enqueueResult { result ->
+            val petResult: Result<Pet> = result.map { savedPet -> savedPet.toPet() }
+            petResult.onSuccess { savedPet ->
+                petCache = petCache.replaceOrAdd(savedPet) { cachedPet -> cachedPet.id }
+            }
+            onResult(petResult)
+        }
+    }
+
+    // Delete a pet and remove its related records from the cache
+    fun deletePet(id: Long, onResult: (Result<Unit>) -> Unit)
+    {
+        api.deletePet(id).enqueueEmpty { result ->
+            result.onSuccess {
+                petCache = petCache.filterNot { pet -> pet.id == id }
+                vaccinationCache = vaccinationCache.filterNot { record -> record.petId == id }
+                medicalRecordCache = medicalRecordCache.filterNot { record -> record.petId == id }
+                appointmentCache = appointmentCache.filterNot { appointment -> appointment.petId == id }
+            }
+            onResult(result)
+        }
+    }
+
+    // Create or update a vaccination record
+    fun saveVaccination(record: VaccinationRecord, onResult: (Result<VaccinationRecord>) -> Unit)
+    {
+        val saveCall: Call<ApiVaccination> = if (record.id > 0)
+        {
+            api.updateVaccination(record.id, record.toRequest())
+        }
+        else
+        {
+            api.createVaccination(record.toRequest())
+        }
+
+        saveCall.enqueueResult { result ->
+            val vaccinationResult: Result<VaccinationRecord> = result.map { savedRecord ->
+                savedRecord.toVaccinationRecord()
+            }
+            vaccinationResult.onSuccess { savedRecord ->
+                vaccinationCache = vaccinationCache.replaceOrAdd(savedRecord) { cachedRecord ->
+                    cachedRecord.id
+                }
+            }
+            onResult(vaccinationResult)
+        }
+    }
+
+    // Delete a vaccination record
+    fun deleteVaccination(id: Long, onResult: (Result<Unit>) -> Unit)
+    {
+        api.deleteVaccination(id).enqueueEmpty { result ->
+            result.onSuccess {
+                vaccinationCache = vaccinationCache.filterNot { record -> record.id == id }
+            }
+            onResult(result)
+        }
+    }
+
+    // Create or update a medical record
+    fun saveMedicalRecord(record: MedicalRecord, onResult: (Result<MedicalRecord>) -> Unit)
+    {
+        val saveCall: Call<ApiMedicalRecord> = if (record.id > 0)
+        {
+            api.updateMedicalRecord(record.id, record.toRequest())
+        }
+        else
+        {
+            api.createMedicalRecord(record.toRequest())
+        }
+
+        saveCall.enqueueResult { result ->
+            val medicalResult: Result<MedicalRecord> = result.map { savedRecord ->
+                savedRecord.toMedicalRecord()
+            }
+            medicalResult.onSuccess { savedRecord ->
+                medicalRecordCache = medicalRecordCache.replaceOrAdd(savedRecord) { cachedRecord ->
+                    cachedRecord.id
+                }
+            }
+            onResult(medicalResult)
+        }
+    }
+
+    // Delete a medical record
+    fun deleteMedicalRecord(id: Long, onResult: (Result<Unit>) -> Unit)
+    {
+        api.deleteMedicalRecord(id).enqueueEmpty { result ->
+            result.onSuccess {
+                medicalRecordCache = medicalRecordCache.filterNot { record -> record.id == id }
+            }
+            onResult(result)
+        }
+    }
+
+    // Create or update an appointment
+    fun saveAppointment(appointment: Appointment, onResult: (Result<Appointment>) -> Unit)
+    {
+        val saveCall: Call<ApiAppointment> = if (appointment.id > 0)
+        {
+            api.updateAppointment(appointment.id, appointment.toRequest())
+        }
+        else
+        {
+            api.createAppointment(appointment.toRequest())
+        }
+
+        saveCall.enqueueResult { result ->
+            val appointmentResult: Result<Appointment> = result.map { savedAppointment ->
+                savedAppointment.toAppointment()
+            }
+            appointmentResult.onSuccess { savedAppointment ->
+                appointmentCache = appointmentCache.replaceOrAdd(savedAppointment) { cachedAppointment ->
+                    cachedAppointment.id
+                }
+            }
+            onResult(appointmentResult)
+        }
+    }
+
+    // Delete an appointment
+    fun deleteAppointment(id: Long, onResult: (Result<Unit>) -> Unit)
+    {
+        api.deleteAppointment(id).enqueueEmpty { result ->
+            result.onSuccess {
+                appointmentCache = appointmentCache.filterNot { appointment -> appointment.id == id }
+            }
+            onResult(result)
+        }
+    }
+
+    // Upload a photo and cache its saved prediction
+    fun analyzeBreed(
+        imageBytes: ByteArray,
+        mimeType: String,
+        fileName: String,
+        petId: Long?,
+        onResult: (Result<BreedPrediction>) -> Unit
+    )
+    {
+        val imageBody: RequestBody = imageBytes.toRequestBody(mimeType.toMediaType())
+        val imagePart: MultipartBody.Part = MultipartBody.Part.createFormData("image", fileName, imageBody)
+        val petPart: RequestBody? = petId?.toString()?.toRequestBody("text/plain".toMediaType())
+
+        api.createAiPrediction(imagePart, petPart).enqueue(object : Callback<ApiAiPrediction>
+        {
+            override fun onResponse(call: Call<ApiAiPrediction>, response: Response<ApiAiPrediction>)
+            {
+                val prediction: ApiAiPrediction? = response.body()
+                if (response.isSuccessful && prediction != null)
+                {
+                    val savedPrediction: BreedPrediction = prediction.toBreedPrediction()
+                    predictionCache = predictionCache.replaceOrAdd(savedPrediction) { cachedPrediction ->
+                        cachedPrediction.id
+                    }
+                    onResult(Result.success(savedPrediction))
+                }
+                else
+                {
+                    onResult(Result.failure(response.aiFailure()))
+                }
+            }
+
+            override fun onFailure(call: Call<ApiAiPrediction>, throwable: Throwable)
+            {
+                onResult(Result.failure(throwable))
+            }
+        })
+    }
+
+    // Calculate dashboard totals from the loaded records
+    fun stats(): DashboardStats
+    {
+        return DashboardCalculator.calculate(
+            pets = pets(),
+            vaccinations = vaccinations(),
+            appointments = appointments(),
+            medicalRecords = medicalRecords()
+        )
+    }
+
+    // Read a pet name for record labels
+    fun petName(petId: Long): String
+    {
+        return pet(petId)?.name ?: "Unknown pet"
+    }
+
+    // Save the session token and active account
+    private fun acceptAuthentication(token: String, user: ApiUser)
+    {
+        val sessionEditor: SharedPreferences.Editor = preferences.edit()
+        sessionEditor.putString(KEY_TOKEN, token)
+        sessionEditor.apply()
+
+        NetworkModule.setAuthToken(token)
+        activeUser = user.toUserAccount()
+    }
+
+    // Remove the token and records belonging to the current session
+    private fun clearSession()
+    {
+        val sessionEditor: SharedPreferences.Editor = preferences.edit()
+        sessionEditor.remove(KEY_TOKEN)
+        sessionEditor.apply()
+
+        NetworkModule.setAuthToken(null)
+        activeUser = null
+        petCache = emptyList()
+        vaccinationCache = emptyList()
+        medicalRecordCache = emptyList()
+        appointmentCache = emptyList()
+        predictionCache = emptyList()
+    }
+
+    // Send a request and return its response body asynchronously
+    private fun <T> Call<T>.enqueueResult(onResult: (Result<T>) -> Unit)
+    {
+        enqueue(object : Callback<T>
+        {
+            override fun onResponse(call: Call<T>, response: Response<T>)
+            {
+                val body: T? = response.body()
+                if (response.isSuccessful && body != null)
+                {
+                    onResult(Result.success(body))
+                }
+                else
+                {
+                    onResult(Result.failure(response.apiFailure()))
+                }
+            }
+
+            override fun onFailure(call: Call<T>, throwable: Throwable)
+            {
+                onResult(Result.failure(throwable))
+            }
+        })
+    }
+
+    // Send a request that does not return a response body
+    private fun Call<Unit>.enqueueEmpty(onResult: (Result<Unit>) -> Unit)
+    {
+        enqueue(object : Callback<Unit>
+        {
+            override fun onResponse(call: Call<Unit>, response: Response<Unit>)
+            {
+                if (response.isSuccessful)
+                {
+                    onResult(Result.success(Unit))
+                }
+                else
+                {
+                    onResult(Result.failure(response.apiFailure()))
+                }
+            }
+
+            override fun onFailure(call: Call<Unit>, throwable: Throwable)
+            {
+                onResult(Result.failure(throwable))
+            }
+        })
+    }
+
+    // Convert API account details for the app
+    private fun ApiUser.toUserAccount(): UserAccount
+    {
+        return UserAccount(id = id, name = name, email = email)
+    }
+
+    // Convert an API pet record for the app
+    private fun ApiPet.toPet(): Pet
+    {
+        return Pet(
+            id = id,
+            ownerEmail = activeUser?.email.orEmpty(),
+            name = name,
+            species = species,
+            breed = breed.orEmpty(),
+            sex = sex,
+            birthDate = birthDate.orEmpty(),
+            weightKg = weightKg ?: 0.0,
+            microchipNumber = microchipNumber.orEmpty(),
+            notes = notes.orEmpty()
+        )
+    }
+
+    // Prepare pet details for saving
+    private fun Pet.toRequest(): PetRequest
+    {
+        return PetRequest(
+            name = name.trim(),
+            species = species,
+            breed = breed.trim().nullIfBlank(),
+            sex = sex,
+            birthDate = birthDate.trim().nullIfBlank(),
+            weightKg = weightKg.takeIf { weight -> weight > 0 },
+            microchipNumber = microchipNumber.trim().nullIfBlank(),
+            notes = notes.trim().nullIfBlank()
+        )
+    }
+
+    // Convert an API vaccination record for the app
+    private fun ApiVaccination.toVaccinationRecord(): VaccinationRecord
+    {
+        return VaccinationRecord(
+            id = id,
+            ownerEmail = activeUser?.email.orEmpty(),
+            petId = petId,
+            vaccineName = vaccineName,
+            administeredDate = administeredDate.orEmpty(),
+            dueDate = dueDate,
+            clinic = clinic.orEmpty(),
+            status = status,
+            notes = notes.orEmpty()
+        )
+    }
+
+    // Prepare vaccination details for saving
+    private fun VaccinationRecord.toRequest(): VaccinationRequest
+    {
+        return VaccinationRequest(
+            petId = petId,
+            vaccineName = vaccineName.trim(),
+            administeredDate = administeredDate.trim().nullIfBlank(),
+            dueDate = dueDate,
+            clinic = clinic.trim().nullIfBlank(),
+            status = status,
+            notes = notes.trim().nullIfBlank()
+        )
+    }
+
+    // Convert an API medical record for the app
+    private fun ApiMedicalRecord.toMedicalRecord(): MedicalRecord
+    {
+        return MedicalRecord(
+            id = id,
+            ownerEmail = activeUser?.email.orEmpty(),
+            petId = petId,
+            visitDate = visitDate,
+            veterinarian = veterinarian.orEmpty(),
+            diagnosis = diagnosis,
+            treatment = treatment.orEmpty(),
+            notes = notes.orEmpty()
+        )
+    }
+
+    // Prepare medical details for saving
+    private fun MedicalRecord.toRequest(): MedicalRecordRequest
+    {
+        return MedicalRecordRequest(
+            petId = petId,
+            visitDate = visitDate,
+            veterinarian = veterinarian.trim().nullIfBlank(),
+            diagnosis = diagnosis.trim(),
+            treatment = treatment.trim().nullIfBlank(),
+            notes = notes.trim().nullIfBlank()
+        )
+    }
+
+    // Convert an API appointment for the app
+    private fun ApiAppointment.toAppointment(): Appointment
+    {
+        return Appointment(
+            id = id,
+            ownerEmail = activeUser?.email.orEmpty(),
+            petId = petId,
+            appointmentDate = appointmentDate,
+            appointmentTime = appointmentTime.take(5),
+            clinic = clinic.orEmpty(),
+            reason = reason,
+            status = status,
+            notes = notes.orEmpty()
+        )
+    }
+
+    // Prepare appointment details for saving
+    private fun Appointment.toRequest(): AppointmentRequest
+    {
+        return AppointmentRequest(
+            petId = petId,
+            appointmentDate = appointmentDate,
+            appointmentTime = appointmentTime.take(5),
+            clinic = clinic.trim().nullIfBlank(),
+            reason = reason.trim(),
+            status = status,
+            notes = notes.trim().nullIfBlank()
+        )
+    }
+
+    // Convert a saved API prediction for the app
+    private fun ApiAiPrediction.toBreedPrediction(): BreedPrediction
+    {
+        return BreedPrediction(
+            id = id,
+            ownerEmail = activeUser?.email.orEmpty(),
+            petId = petId,
+            petName = pet?.name ?: petId?.let(::petName).orEmpty(),
+            species = species,
+            breed = breed,
+            confidence = confidence,
+            createdAt = createdAt,
+            imageUrl = imageUrl.orEmpty(),
+            modelVersion = modelVersion,
+            topPredictions = topPredictions.map { prediction ->
+                BreedPredictionOption(prediction.breed, prediction.confidence)
+            },
+            disclaimer = disclaimer
+        )
+    }
+
+    // Convert service connection details for the dashboard
+    private fun ApiSystemHealth.toSystemHealth(): SystemHealth
+    {
+        return SystemHealth(
+            overall = status,
+            laravel = services.laravel.status,
+            database = services.database.status,
+            ai = services.ai.status,
+            aiModelVersion = services.ai.modelVersion.orEmpty(),
+            checkedAt = checkedAt
+        )
+    }
+
+    // Read an error returned by breed recognition
+    private fun <T> Response<T>.aiFailure(): Throwable
+    {
+        return apiFailure("Breed recognition failed with HTTP ${code()}.")
+    }
+
+    // Read server validation messages and field errors
+    private fun <T> Response<T>.apiFailure(
+        fallback: String = "The server could not complete this request (HTTP ${code()})."
+    ): Throwable
+    {
+        val responseText: String = errorBody()?.string().orEmpty()
+
+        return runCatching {
+            val payload: JSONObject = JSONObject(responseText)
+            val validationErrors: JSONObject? = payload.optJSONObject("errors")
+            val fieldErrors: MutableMap<String, String> = mutableMapOf()
+
+            validationErrors?.keys()?.forEach { field ->
+                val messages: JSONArray? = validationErrors.optJSONArray(field)
+                val firstMessage: String = messages?.optString(0).orEmpty()
+
+                if (firstMessage.isNotBlank())
+                {
+                    fieldErrors[field] = firstMessage
+                }
+            }
+
+            val message: String = payload.optString("message")
+                .ifBlank { fieldErrors.values.firstOrNull().orEmpty() }
+                .ifBlank { fallback }
+
+            ApiRequestException(message, code(), fieldErrors)
+        }.getOrElse {
+            ApiRequestException(fallback, code())
+        }
+    }
+
+    // Send empty optional fields as null
+    private fun String.nullIfBlank(): String?
+    {
+        return ifBlank { null }
+    }
+
+    // Replace a cached record or append a newly created record
+    private fun <T> List<T>.replaceOrAdd(value: T, id: (T) -> Long): List<T>
+    {
+        val recordIndex: Int = indexOfFirst { record -> id(record) == id(value) }
+
+        if (recordIndex < 0)
+        {
+            return this + value
+        }
+
+        return toMutableList().apply {
+            this[recordIndex] = value
+        }
+    }
+
+    // Preference names used by the authentication session
+    companion object
+    {
+        private const val AUTH_PREFERENCES = "pawcare_auth"
+        private const val LEGACY_DATA_PREFERENCES = "pawcare_store_v1"
+        private const val KEY_TOKEN = "sanctum_token"
     }
 }
