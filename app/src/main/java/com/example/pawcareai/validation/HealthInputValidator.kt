@@ -3,6 +3,8 @@ package com.example.pawcareai.validation
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
+//1.validation results
+
 data class VaccinationValidationResult(
     val vaccineNameError: String? = null,
     val administeredDateError: String? = null,
@@ -30,9 +32,11 @@ data class MedicalRecordValidationResult(
         get() = visitDateError ?: diagnosisError
 }
 
+//2.input rules
+
 object HealthInputValidator
 {
-    // Validate vaccination details and the order of the two dates.
+    //validate vaccination details and the order of the two dates
     fun validateVaccination(
         vaccineName: String,
         administeredDate: String,
@@ -70,7 +74,7 @@ object HealthInputValidator
         )
     }
 
-    // Validate the clinic visit date and diagnosis before saving a medical record.
+    //validate the clinic visit date and diagnosis before saving a medical record
     fun validateMedicalRecord(
         visitDate: String,
         diagnosis: String,
@@ -96,7 +100,7 @@ object HealthInputValidator
         )
     }
 
-    // Convert an optional date without throwing an error for invalid input.
+    //return null for a missing or invalid date
     private fun parseDate(value: String): LocalDate?
     {
         value.takeUnless(String::isBlank) ?: return null

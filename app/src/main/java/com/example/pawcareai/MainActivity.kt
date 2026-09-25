@@ -37,6 +37,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
     private lateinit var formTitle: TextView
     private var registerMode: Boolean = false
 
+    //1.screen setup
+
     //create the login screen
     override fun onCreate(savedInstanceState: Bundle?)
     {
@@ -61,7 +63,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
         }
     }
 
-    //connect the form to its XML views
+    //connect the form to its xml views
     private fun initializeForm()
     {
         nameLayout = findViewById(R.id.nameLayout)
@@ -82,6 +84,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
         toggleText.setOnClickListener(this)
     }
 
+    //2.input
+
     //handle login and registration buttons
     override fun onClick(view: View?)
     {
@@ -89,25 +93,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
         {
             R.id.loginButton -> submit()
             R.id.signUpText -> changeFormMode()
-        }
-    }
-
-    //switch between login and registration
-    private fun changeFormMode()
-    {
-        registerMode = !registerMode
-        renderMode()
-    }
-
-    //restore the saved account session
-    private fun restoreAccount()
-    {
-        if (!repository.hasSession) return
-
-        setFormBusy(true)
-        repository.restoreSession { result ->
-            setFormBusy(false)
-            result.onSuccess { openDashboard() }
         }
     }
 
@@ -125,15 +110,21 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
         authenticate(name, email, password)
     }
 
-    //display input validation messages
-    private fun displayValidation(validation: AuthValidationResult)
+    //3.process
+
+    //restore the saved account session
+    private fun restoreAccount()
     {
-        nameLayout.error = validation.nameError
-        emailLayout.error = validation.emailError
-        passwordLayout.error = validation.passwordError
+        if (!repository.hasSession) return
+
+        setFormBusy(true)
+        repository.restoreSession { result ->
+            setFormBusy(false)
+            result.onSuccess { openDashboard() }
+        }
     }
 
-    //send the account details to Laravel
+    //send the account details to laravel
     private fun authenticate(name: String, email: String, password: String)
     {
         setFormBusy(true)
@@ -154,7 +145,24 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
         }
     }
 
-    //display errors returned by Laravel
+    //switch between login and registration
+    private fun changeFormMode()
+    {
+        registerMode = !registerMode
+        renderMode()
+    }
+
+    //4.output
+
+    //display input validation messages
+    private fun displayValidation(validation: AuthValidationResult)
+    {
+        nameLayout.error = validation.nameError
+        emailLayout.error = validation.emailError
+        passwordLayout.error = validation.passwordError
+    }
+
+    //display errors returned by laravel
     private fun displayAuthenticationError(error: Throwable)
     {
         if (error is ApiRequestException)
@@ -195,6 +203,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
             else -> getString(R.string.login)
         }
     }
+
+    //5.navigation
 
     //open the dashboard after authentication
     private fun openDashboard()

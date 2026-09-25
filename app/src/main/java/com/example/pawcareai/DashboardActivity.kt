@@ -9,7 +9,6 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -39,14 +38,13 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Locale
 
 class DashboardActivity : AppCompatActivity()
 {
-    // Screen components and active scan state
+    //screen components and active scan state
     private lateinit var repository: AppRepository
     private lateinit var contentContainer: FrameLayout
     private lateinit var toolbar: MaterialToolbar
@@ -57,7 +55,7 @@ class DashboardActivity : AppCompatActivity()
     private var aiError: String? = null
     private var aiLoading: Boolean = false
 
-    // Select a photo and clear the previous scan result
+    //select a photo and clear the previous scan result
     private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null)
         {
@@ -68,7 +66,9 @@ class DashboardActivity : AppCompatActivity()
         }
     }
 
-    // Create the dashboard and restore the signed-in account
+    //1.screen setup
+
+    //create the dashboard and restore the signed-in account
     override fun onCreate(savedInstanceState: Bundle?)
     {
         super.onCreate(savedInstanceState)
@@ -81,37 +81,337 @@ class DashboardActivity : AppCompatActivity()
         setContentView(R.layout.activity_dashboard)
         contentContainer = findViewById(R.id.contentContainer)
         toolbar = findViewById(R.id.topAppBar)
-        toolbar.setOnMenuItemClickListener { menuItem ->
-            if (menuItem.itemId == R.id.action_logout)
-            {
-                val signOutDialog = MaterialAlertDialogBuilder(this)
-                signOutDialog.setTitle("Sign out?")
-                signOutDialog.setMessage("Your PawCare records will remain safely stored in PostgreSQL.")
-                signOutDialog.setNegativeButton("Cancel", null)
-                signOutDialog.setPositiveButton("Sign out") { _, _ ->
-                    repository.logout { returnToLogin() }
-                }
-                signOutDialog.show()
-                true
-            }
-            else
-            {
-                false
-            }
-        }
+        setToolbarActions()
 
         bottomNavigation = findViewById(R.id.bottomNavigation)
-        bottomNavigation.setOnItemSelectedListener { item ->
-            when (item.itemId)
-            {
-                R.id.nav_home -> renderHomeScreen()
-                R.id.nav_pets -> renderPetsScreen()
-                R.id.nav_health -> renderHealthScreen()
-                R.id.nav_ai -> renderAiScreen()
-            }
-            true
-        }
+        setNavigationActions()
         showLoading("Loading your PostgreSQL records…")
+        restoreAccountRecords()
+    }
+
+    //2.input
+
+    //create or update a pet profile after validating the form
+    private fun showPetDialog(existing: Pet? = null)
+    {
+        val body: LinearLayout = dialogBody()
+        val name: EditText = body.field("Pet name", existing?.name)
+        val species: Spinner = body.spinner("Species", listOf("Dog", "Cat"), existing?.species)
+        val breed: EditText = body.field("Breed", existing?.breed)
+        val sex: Spinner = body.spinner("Sex", listOf("Unknown", "Female", "Male"), existing?.sex)
+        val birthDate: EditText = body.dateField("Birth date (YYYY-MM-DD)", existing?.birthDate)
+        val savedWeight: String? = existing?.weightKg?.takeIf { weightKg -> weightKg > 0 }?.clean()
+        val weight: EditText = body.field("Weight in kg", savedWeight, InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        val microchip: EditText = body.field("Microchip number (optional)", existing?.microchipNumber)
+        val notes: EditText = body.field("Care notes (optional)", existing?.notes, lines = 3)
+
+        val petDialog = MaterialAlertDialogBuilder(this)
+        petDialog.setTitle(if (existing == null) "Add pet" else "Edit ${existing.name}")
+        petDialog.setView(scrollDialog(body))
+        petDialog.setNegativeButton("Cancel", null)
+        petDialog.setPositiveButton("Save", null)
+        val dialog = petDialog.create()
+        dialog.setOnShowListener {
+            val saveButton = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+            saveButton.setOnClickListener {
+                val validation = PetInputValidator.validate(
+                    name = name.text.toString(),
+                    birthDate = birthDate.text.toString(),
+                    weightKg = weight.text.toString()
+                )
+                name.error = validation.nameError
+                birthDate.error = validation.birthDateError
+                weight.error = validation.weightError
+                if (!validation.isValid)
+                {
+                    Toast.makeText(this, validation.firstError, Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                saveButton.isEnabled = false
+                val petRecord = Pet(
+                    id = existing?.id ?: 0,
+                    name = name.text.toString().trim(),
+                    species = species.selectedItem.toString(),
+                    breed = breed.text.toString().trim(),
+                    sex = sex.selectedItem.toString(),
+                    birthDate = birthDate.text.toString().trim(),
+                    weightKg = weight.text.toString().toDoubleOrNull() ?: 0.0,
+                    microchipNumber = microchip.text.toString().trim(),
+                    notes = notes.text.toString().trim()
+                )
+                //refresh the screen only after saving succeeds
+                repository.savePet(petRecord) { result ->
+                    saveButton.isEnabled = true
+                    handleDatabaseResult(result) {
+                        dialog.dismiss()
+                        renderPetsScreen()
+                    }
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    //create or update a vaccination linked to the selected pet
+    private fun showVaccinationDialog(existing: VaccinationRecord? = null)
+    {
+        val pets = repository.pets()
+        if (pets.isEmpty())
+        {
+            return requirePetFirst()
+        }
+        val body = dialogBody()
+        val pet = body.petSpinner(pets, existing?.petId)
+        val vaccine = body.field("Vaccine name", existing?.vaccineName)
+        val administered = body.dateField("Administered date (optional)", existing?.administeredDate)
+        val due = body.dateField("Next due date (YYYY-MM-DD)", existing?.dueDate)
+        val clinic = body.field("Clinic (optional)", existing?.clinic)
+        val status = body.spinner("Status", listOf("Upcoming", "Completed", "Overdue"), existing?.status)
+        val notes = body.field("Notes (optional)", existing?.notes, lines = 2)
+        showSaveDialog(
+            title = if (existing == null) "Add vaccination" else "Edit vaccination",
+            body = body,
+            validate = {
+                val validation = HealthInputValidator.validateVaccination(
+                    vaccineName = vaccine.text.toString(),
+                    administeredDate = administered.text.toString(),
+                    dueDate = due.text.toString()
+                )
+                vaccine.error = validation.vaccineNameError
+                administered.error = validation.administeredDateError
+                due.error = validation.dueDateError
+                validation.firstError
+            },
+            save = { complete ->
+                val vaccination = VaccinationRecord(
+                    id = existing?.id ?: 0,
+                    petId = pets[pet.selectedItemPosition].id,
+                    vaccineName = vaccine.text.toString().trim(),
+                    administeredDate = administered.text.toString(),
+                    dueDate = due.text.toString(),
+                    clinic = clinic.text.toString().trim(),
+                    status = status.selectedItem.toString(),
+                    notes = notes.text.toString().trim()
+                )
+                repository.saveVaccination(vaccination) { result ->
+                    complete(result.map { Unit })
+                }
+            },
+            onSaved = { renderHealthScreen() }
+        )
+    }
+
+    //create or update a clinic appointment after checking its date and time
+    private fun showAppointmentDialog(existing: Appointment? = null)
+    {
+        val pets = repository.pets()
+        if (pets.isEmpty())
+        {
+            return requirePetFirst()
+        }
+        val body = dialogBody()
+        val pet = body.petSpinner(pets, existing?.petId)
+        val date = body.dateField("Appointment date (YYYY-MM-DD)", existing?.appointmentDate)
+        val time = body.field("Time (HH:MM)", existing?.appointmentTime ?: "09:00")
+        val clinic = body.field("Clinic", existing?.clinic)
+        val reason = body.field("Reason for visit", existing?.reason)
+        val status = body.spinner("Status", listOf("Scheduled", "Completed", "Cancelled"), existing?.status)
+        val notes = body.field("Notes (optional)", existing?.notes, lines = 3)
+        showSaveDialog(
+            title = if (existing == null) "Book appointment" else "Edit appointment",
+            body = body,
+            validate = {
+                val validation = AppointmentInputValidator.validate(
+                    appointmentDate = date.text.toString(),
+                    appointmentTime = time.text.toString(),
+                    reason = reason.text.toString(),
+                    status = status.selectedItem.toString()
+                )
+                date.error = validation.dateError
+                time.error = validation.timeError
+                reason.error = validation.reasonError
+                validation.firstError()
+            },
+            save = { complete ->
+                val appointment = Appointment(
+                    id = existing?.id ?: 0,
+                    petId = pets[pet.selectedItemPosition].id,
+                    appointmentDate = date.text.toString(),
+                    appointmentTime = time.text.toString(),
+                    clinic = clinic.text.toString().trim(),
+                    reason = reason.text.toString().trim(),
+                    status = status.selectedItem.toString(),
+                    notes = notes.text.toString().trim()
+                )
+                repository.saveAppointment(appointment) { result ->
+                    complete(result.map { Unit })
+                }
+            },
+            onSaved = { renderHealthScreen() }
+        )
+    }
+
+    //create or update a medical visit record for the selected pet
+    private fun showMedicalRecordDialog(existing: MedicalRecord? = null)
+    {
+        val pets = repository.pets()
+        if (pets.isEmpty())
+        {
+            return requirePetFirst()
+        }
+        val body = dialogBody()
+        val pet = body.petSpinner(pets, existing?.petId)
+        val date = body.dateField("Visit date (YYYY-MM-DD)", existing?.visitDate)
+        val veterinarian = body.field("Veterinarian", existing?.veterinarian)
+        val diagnosis = body.field("Diagnosis / visit outcome", existing?.diagnosis)
+        val treatment = body.field("Treatment", existing?.treatment, lines = 2)
+        val notes = body.field("Notes (optional)", existing?.notes, lines = 3)
+        showSaveDialog(
+            title = if (existing == null) "Add medical record" else "Edit medical record",
+            body = body,
+            validate = {
+                val validation = HealthInputValidator.validateMedicalRecord(
+                    visitDate = date.text.toString(),
+                    diagnosis = diagnosis.text.toString()
+                )
+                date.error = validation.visitDateError
+                diagnosis.error = validation.diagnosisError
+                validation.firstError
+            },
+            save = { complete ->
+                val medicalRecord = MedicalRecord(
+                    id = existing?.id ?: 0,
+                    petId = pets[pet.selectedItemPosition].id,
+                    visitDate = date.text.toString(),
+                    veterinarian = veterinarian.text.toString().trim(),
+                    diagnosis = diagnosis.text.toString().trim(),
+                    treatment = treatment.text.toString().trim(),
+                    notes = notes.text.toString().trim()
+                )
+                repository.saveMedicalRecord(medicalRecord) { result ->
+                    complete(result.map { Unit })
+                }
+            },
+            onSaved = { renderHealthScreen() }
+        )
+    }
+
+    //link a new prediction to a selected pet profile
+    private fun choosePredictionPet()
+    {
+        val pets = repository.pets()
+        val petOptions: List<String> = listOf("Do not link to a pet") + pets.map { pet -> pet.name }
+        val petDialog = MaterialAlertDialogBuilder(this)
+        petDialog.setTitle("Link prediction to pet")
+        petDialog.setItems(petOptions.toTypedArray()) { _, position ->
+            selectedAiPetId = if (position == 0) null else pets[position - 1].id
+            renderAiScreen()
+        }
+        petDialog.setNegativeButton("Cancel", null)
+        petDialog.show()
+    }
+
+    //request a pet profile before adding health records
+    private fun requirePetFirst()
+    {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Add a pet first")
+            .setMessage("Health records must be linked to a pet profile.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Add pet") { _, _ -> showPetDialog() }
+            .show()
+    }
+
+    //create the input area inside a dialog
+    private fun dialogBody(): LinearLayout
+    {
+        val body = vertical()
+        body.setPadding(dp(2), 0, dp(2), dp(4))
+        return body
+    }
+
+    //allow a long dialog to scroll
+    private fun scrollDialog(body: View): ScrollView
+    {
+        val scrollView = ScrollView(this)
+        scrollView.setPadding(dp(20), 0, dp(20), 0)
+        scrollView.addView(body)
+        return scrollView
+    }
+
+    //select the pet linked to a record
+    private fun LinearLayout.petSpinner(pets: List<Pet>, selectedId: Long?): Spinner
+    {
+        val petOptions = pets.map { "${it.name} (${it.species})" }
+        val petInput = spinner("Pet", petOptions)
+        val selectedIndex = pets.indexOfFirst { it.id == selectedId }
+        if (selectedIndex >= 0) petInput.setSelection(selectedIndex)
+        return petInput
+    }
+
+    //create a labelled dropdown
+    private fun LinearLayout.spinner(title: String, options: List<String>, selected: String? = null): Spinner
+    {
+        val titleMargin = if (childCount == 0) 0 else 10
+        addView(label(title, 12, true, R.color.paw_muted).withTopMargin(titleMargin))
+
+        val dropdown = Spinner(this@DashboardActivity)
+        dropdown.adapter = ArrayAdapter(this@DashboardActivity, android.R.layout.simple_spinner_dropdown_item, options)
+        val selectedIndex = options.indexOf(selected)
+        if (selectedIndex >= 0) dropdown.setSelection(selectedIndex)
+        dropdown.setPadding(dp(10), dp(8), dp(10), dp(8))
+        addView(dropdown, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)))
+        return dropdown
+    }
+
+    //create a form input
+    private fun LinearLayout.field(
+        hint: String,
+        value: String? = null,
+        inputType: Int = InputType.TYPE_CLASS_TEXT,
+        lines: Int = 1
+    ): EditText
+    {
+        val input = EditText(this@DashboardActivity)
+        input.hint = hint
+        input.setText(value.orEmpty())
+        input.inputType = inputType
+        input.maxLines = lines
+        input.minLines = lines
+        input.setTextColor(color(R.color.paw_text))
+        input.setHintTextColor(color(R.color.paw_muted))
+
+        val inputLayout = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        inputLayout.topMargin = dp(if (childCount == 0) 0 else 8)
+        addView(input, inputLayout)
+        return input
+    }
+
+    //choose a date with the calendar
+    private fun LinearLayout.dateField(hint: String, value: String? = null): EditText
+    {
+        val dateInput = field(hint, value)
+        dateInput.isFocusable = false
+        dateInput.setOnClickListener {
+            val initialDate = runCatching { LocalDate.parse(dateInput.text.toString()) }
+                .getOrDefault(LocalDate.now())
+            val datePicker = DatePickerDialog(
+                this@DashboardActivity,
+                { _, year, month, day -> dateInput.setText(LocalDate.of(year, month + 1, day).toString()) },
+                initialDate.year,
+                initialDate.monthValue - 1,
+                initialDate.dayOfMonth
+            )
+            datePicker.show()
+        }
+        return dateInput
+    }
+
+    //3.process
+
+    //load records after restoring the signed-in account
+    private fun restoreAccountRecords()
+    {
         repository.restoreSession { sessionResult ->
             sessionResult.onSuccess {
                 repository.refreshData { dataResult ->
@@ -125,7 +425,127 @@ class DashboardActivity : AppCompatActivity()
         }
     }
 
-    // Display account details, care totals, reminders and quick actions
+    //validate the photo and request breed analysis through laravel
+    private fun analyzeImage()
+    {
+        val uri = selectedImageUri ?: return
+        val imageReadResult = runCatching {
+            contentResolver.openInputStream(uri)?.use { imageStream -> imageStream.readBytes() }
+        }
+        val bytes: ByteArray? = imageReadResult.getOrNull()
+        if (bytes == null)
+        {
+            aiError = "The selected image could not be read. Please choose another photo."
+            renderAiScreen()
+            return
+        }
+        if (bytes.size > 10 * 1024 * 1024)
+        {
+            aiError = "The selected image is larger than 10 MB. Choose a smaller photo."
+            renderAiScreen()
+            return
+        }
+        val mime = contentResolver.getType(uri) ?: "image/jpeg"
+        val extension = when (mime)
+        {
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            "image/jpeg" -> "jpg"
+            else -> {
+                aiError = "Choose a JPG, PNG, or WebP image."
+                renderAiScreen()
+                return
+            }
+        }
+        aiLoading = true
+        aiError = null
+        renderAiScreen()
+        repository.analyzeBreed(bytes, mime, "pet-photo.$extension", selectedAiPetId) { result ->
+            aiLoading = false
+            result.onSuccess { prediction -> aiResult = prediction }
+                .onFailure { error ->
+                    aiError = error.localizedMessage
+                        ?: "The image could not be analyzed. Check Laravel and FastAPI, then try again."
+                }
+            renderAiScreen()
+        }
+    }
+
+    //update the connection status shown on the home screen
+    private fun refreshSystemHealth()
+    {
+        repository.checkSystemHealth {
+            if (bottomNavigation.selectedItemId == R.id.nav_home)
+            {
+                renderHomeScreen()
+            }
+        }
+    }
+
+    //save a validated form while preventing duplicate button submissions
+    private fun showSaveDialog(
+        title: String,
+        body: LinearLayout,
+        validate: () -> String?,
+        save: ((Result<Unit>) -> Unit) -> Unit,
+        onSaved: () -> Unit
+    )
+    {
+        val saveDialog = MaterialAlertDialogBuilder(this)
+        saveDialog.setTitle(title)
+        saveDialog.setView(scrollDialog(body))
+        saveDialog.setNegativeButton("Cancel", null)
+        saveDialog.setPositiveButton("Save", null)
+        val dialog = saveDialog.create()
+        dialog.setOnShowListener {
+            val saveButton = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+            saveButton.setOnClickListener {
+                val error = validate()
+                if (error != null)
+                {
+                    Toast.makeText(this, error, Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                saveButton.isEnabled = false
+                save { result ->
+                    saveButton.isEnabled = true
+                    handleDatabaseResult(result) {
+                        dialog.dismiss()
+                        onSaved()
+                    }
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    //confirm before deleting a record
+    private fun confirmDelete(title: String, message: String, action: () -> Unit)
+    {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setNegativeButton("Keep", null)
+            .setPositiveButton("Delete") { _, _ -> action() }
+            .show()
+    }
+
+    //handle the result of a database update
+    private fun <T> handleDatabaseResult(result: Result<T>, onSuccess: (T) -> Unit)
+    {
+        result.onSuccess(onSuccess)
+            .onFailure {
+                Toast.makeText(
+                    this,
+                    "The database could not be updated. Check the Laravel connection and try again.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+    }
+
+    //4.output
+
+    //display account details, care totals, reminders and quick actions
     private fun renderHomeScreen()
     {
         toolbar.title = "PawCare"
@@ -208,59 +628,7 @@ class DashboardActivity : AppCompatActivity()
         show(root)
     }
 
-    // Update the connection status shown on the home screen
-    private fun refreshSystemHealth()
-    {
-        repository.checkSystemHealth {
-            if (bottomNavigation.selectedItemId == R.id.nav_home)
-            {
-                renderHomeScreen()
-            }
-        }
-    }
-
-    // Create the Laravel, PostgreSQL and AI connection card
-    private fun systemHealthCard(): MaterialCardView
-    {
-        val health = repository.systemHealth()
-        val title: String = when (health?.overall)
-        {
-            "ok" -> "All services connected"
-            "degraded" -> "Core records connected; one service needs attention"
-            "unavailable" -> "Laravel connection unavailable"
-            else -> "Checking system services…"
-        }
-
-        val connectionBody: LinearLayout = vertical(18)
-        connectionBody.addView(label(title, 16, true, R.color.paw_text))
-        connectionBody.addView(label("Laravel API: ${serviceLabel(health?.laravel)}", 13, false, R.color.paw_muted).withTopMargin(8))
-        connectionBody.addView(label("PostgreSQL: ${serviceLabel(health?.database)}", 13, false, R.color.paw_muted).withTopMargin(4))
-        connectionBody.addView(label("AI service: ${serviceLabel(health?.ai)}", 13, false, R.color.paw_muted).withTopMargin(4))
-        if (!health?.aiModelVersion.isNullOrBlank())
-        {
-            connectionBody.addView(label("Model: ${health?.aiModelVersion}", 12, false, R.color.paw_muted).withTopMargin(4))
-        }
-        connectionBody.addView(smallButton("Check again") { refreshSystemHealth() }.withTopMargin(12))
-
-        val connectionCard: MaterialCardView = card(R.color.white)
-        connectionCard.addView(connectionBody)
-        return connectionCard
-    }
-
-    // Display a readable name for each service status
-    private fun serviceLabel(status: String?): String
-    {
-        return when (status)
-        {
-            "ok", "ready" -> "Connected"
-            "model_missing" -> "Model not loaded"
-            "unavailable" -> "Unavailable"
-            "unknown" -> "Not confirmed"
-            else -> "Checking"
-        }
-    }
-
-    // Display all pet profiles and the add-pet action
+    //display all pet profiles and the add-pet action
     private fun renderPetsScreen()
     {
         toolbar.title = "My pets"
@@ -280,7 +648,7 @@ class DashboardActivity : AppCompatActivity()
         show(root)
     }
 
-    // Display vaccination, appointment and medical record sections
+    //display vaccination, appointment and medical record sections
     private fun renderHealthScreen()
     {
         toolbar.title = "Health records"
@@ -320,7 +688,7 @@ class DashboardActivity : AppCompatActivity()
         show(root)
     }
 
-    // Display photo selection, analysis feedback and saved predictions
+    //display photo selection, analysis feedback and saved predictions
     private fun renderAiScreen()
     {
         toolbar.title = "AI breed recognition"
@@ -385,7 +753,48 @@ class DashboardActivity : AppCompatActivity()
         show(root)
     }
 
-    // Create the selected photo preview or the empty photo placeholder
+    //create the laravel, postgresql and ai connection card
+    private fun systemHealthCard(): MaterialCardView
+    {
+        val health = repository.systemHealth()
+        val title: String = when (health?.overall)
+        {
+            "ok" -> "All services connected"
+            "degraded" -> "Core records connected; one service needs attention"
+            "unavailable" -> "Laravel connection unavailable"
+            else -> "Checking system services…"
+        }
+
+        val connectionBody: LinearLayout = vertical(18)
+        connectionBody.addView(label(title, 16, true, R.color.paw_text))
+        connectionBody.addView(label("Laravel API: ${serviceLabel(health?.laravel)}", 13, false, R.color.paw_muted).withTopMargin(8))
+        connectionBody.addView(label("PostgreSQL: ${serviceLabel(health?.database)}", 13, false, R.color.paw_muted).withTopMargin(4))
+        connectionBody.addView(label("AI service: ${serviceLabel(health?.ai)}", 13, false, R.color.paw_muted).withTopMargin(4))
+        if (!health?.aiModelVersion.isNullOrBlank())
+        {
+            connectionBody.addView(label("Model: ${health?.aiModelVersion}", 12, false, R.color.paw_muted).withTopMargin(4))
+        }
+        connectionBody.addView(smallButton("Check again") { refreshSystemHealth() }.withTopMargin(12))
+
+        val connectionCard: MaterialCardView = card(R.color.white)
+        connectionCard.addView(connectionBody)
+        return connectionCard
+    }
+
+    //display a readable name for each service status
+    private fun serviceLabel(status: String?): String
+    {
+        return when (status)
+        {
+            "ok", "ready" -> "Connected"
+            "model_missing" -> "Model not loaded"
+            "unavailable" -> "Unavailable"
+            "unknown" -> "Not confirmed"
+            else -> "Checking"
+        }
+    }
+
+    //create the selected photo preview or the empty photo placeholder
     private fun imagePreviewCard(): MaterialCardView
     {
         val previewCard = MaterialCardView(this)
@@ -415,7 +824,7 @@ class DashboardActivity : AppCompatActivity()
         return previewCard
     }
 
-    // Create the latest breed match and alternative predictions
+    //create the latest breed match and alternative predictions
     private fun predictionResultCard(result: BreedPrediction): MaterialCardView
     {
         val resultBody: LinearLayout = vertical(18)
@@ -423,6 +832,7 @@ class DashboardActivity : AppCompatActivity()
         resultBody.addView(label(result.breed.replace('_', ' '), 25, true, R.color.paw_text).withTopMargin(4))
 
         val speciesName: String = result.species.replaceFirstChar { character -> character.uppercase() }
+        //model probability x 100 for display
         val confidencePercent: Int = (result.confidence * 100).toInt()
         resultBody.addView(label("$speciesName · $confidencePercent% confidence", 15, false, R.color.paw_muted).withTopMargin(4))
         if (result.topPredictions.size > 1)
@@ -445,73 +855,13 @@ class DashboardActivity : AppCompatActivity()
         return resultCard
     }
 
-    // Validate the photo and request breed analysis through Laravel
-    private fun analyzeImage()
-    {
-        val uri = selectedImageUri ?: return
-        val imageReadResult = runCatching {
-            contentResolver.openInputStream(uri)?.use { imageStream -> imageStream.readBytes() }
-        }
-        val bytes: ByteArray? = imageReadResult.getOrNull()
-        if (bytes == null)
-        {
-            aiError = "The selected image could not be read. Please choose another photo."
-            renderAiScreen()
-            return
-        }
-        if (bytes.size > 10 * 1024 * 1024)
-        {
-            aiError = "The selected image is larger than 10 MB. Choose a smaller photo."
-            renderAiScreen()
-            return
-        }
-        val mime = contentResolver.getType(uri) ?: "image/jpeg"
-        val extension = when (mime)
-        {
-            "image/png" -> "png"
-            "image/webp" -> "webp"
-            "image/jpeg" -> "jpg"
-            else -> {
-                aiError = "Choose a JPG, PNG, or WebP image."
-                renderAiScreen()
-                return
-            }
-        }
-        aiLoading = true
-        aiError = null
-        renderAiScreen()
-        repository.analyzeBreed(bytes, mime, "pet-photo.$extension", selectedAiPetId) { result ->
-            aiLoading = false
-            result.onSuccess { prediction -> aiResult = prediction }
-                .onFailure { error ->
-                    aiError = error.localizedMessage
-                        ?: "The image could not be analyzed. Check Laravel and FastAPI, then try again."
-                }
-            renderAiScreen()
-        }
-    }
-
-    // Link a new prediction to a selected pet profile
-    private fun choosePredictionPet()
-    {
-        val pets = repository.pets()
-        val petOptions: List<String> = listOf("Do not link to a pet") + pets.map { pet -> pet.name }
-        val petDialog = MaterialAlertDialogBuilder(this)
-        petDialog.setTitle("Link prediction to pet")
-        petDialog.setItems(petOptions.toTypedArray()) { _, position ->
-            selectedAiPetId = if (position == 0) null else pets[position - 1].id
-            renderAiScreen()
-        }
-        petDialog.setNegativeButton("Cancel", null)
-        petDialog.show()
-    }
-
-    // Create a saved prediction history card
+    //create a saved prediction history card
     private fun predictionCard(prediction: BreedPrediction): MaterialCardView
     {
         val predictionBody: LinearLayout = vertical(16)
         predictionBody.addView(label(prediction.breed.replace('_', ' '), 18, true, R.color.paw_text))
         val speciesName: String = prediction.species.replaceFirstChar { character -> character.uppercase() }
+        //model probability x 100 for display
         val confidencePercent: Int = (prediction.confidence * 100).toInt()
         predictionBody.addView(label("$speciesName · $confidencePercent% confidence", 14, false, R.color.paw_primary).withTopMargin(4))
 
@@ -533,7 +883,7 @@ class DashboardActivity : AppCompatActivity()
         return historyCard
     }
 
-    // Create a pet profile card with edit and delete actions
+    //create a pet profile card with edit and delete actions
     private fun petCard(pet: Pet): MaterialCardView
     {
         val petIdentity: LinearLayout = vertical()
@@ -572,7 +922,7 @@ class DashboardActivity : AppCompatActivity()
         return profileCard
     }
 
-    // Create a vaccination card with its saved care details
+    //create a vaccination card with its saved care details
     private fun vaccinationCard(item: VaccinationRecord): MaterialCardView
     {
         val vaccinationDetails: String = listOfNotNull(
@@ -597,7 +947,7 @@ class DashboardActivity : AppCompatActivity()
         )
     }
 
-    // Create an appointment card with its reminder and status
+    //create an appointment card with its reminder and status
     private fun appointmentCard(item: Appointment): MaterialCardView
     {
         val appointmentDetails: String = listOfNotNull(
@@ -622,7 +972,7 @@ class DashboardActivity : AppCompatActivity()
         )
     }
 
-    // Create a medical record card with the visit outcome
+    //create a medical record card with the visit outcome
     private fun medicalCard(item: MedicalRecord): MaterialCardView
     {
         val medicalDetails: String = listOf(item.veterinarian, item.treatment)
@@ -644,8 +994,14 @@ class DashboardActivity : AppCompatActivity()
         )
     }
 
-    // Create the common health card layout and record actions
-    private fun recordCard(title: String, subtitle: String, detail: String, onEdit: () -> Unit, onDelete: () -> Unit): MaterialCardView
+    //create the common health card layout and record actions
+    private fun recordCard(
+        title: String,
+        subtitle: String,
+        detail: String,
+        onEdit: () -> Unit,
+        onDelete: () -> Unit
+    ): MaterialCardView
     {
         val recordBody: LinearLayout = vertical(16)
         recordBody.addView(label(title, 17, true, R.color.paw_text))
@@ -659,337 +1015,6 @@ class DashboardActivity : AppCompatActivity()
         val healthCard: MaterialCardView = card(R.color.white)
         healthCard.addView(recordBody)
         return healthCard
-    }
-
-    // Create or update a pet profile after validating the form
-    private fun showPetDialog(existing: Pet? = null)
-    {
-        val body: LinearLayout = dialogBody()
-        val name: EditText = body.field("Pet name", existing?.name)
-        val species: Spinner = body.spinner("Species", listOf("Dog", "Cat"), existing?.species)
-        val breed: EditText = body.field("Breed", existing?.breed)
-        val sex: Spinner = body.spinner("Sex", listOf("Unknown", "Female", "Male"), existing?.sex)
-        val birthDate: EditText = body.dateField("Birth date (YYYY-MM-DD)", existing?.birthDate)
-        val savedWeight: String? = existing?.weightKg?.takeIf { weightKg -> weightKg > 0 }?.clean()
-        val weight: EditText = body.field("Weight in kg", savedWeight, InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
-        val microchip: EditText = body.field("Microchip number (optional)", existing?.microchipNumber)
-        val notes: EditText = body.field("Care notes (optional)", existing?.notes, lines = 3)
-
-        val petDialog = MaterialAlertDialogBuilder(this)
-        petDialog.setTitle(if (existing == null) "Add pet" else "Edit ${existing.name}")
-        petDialog.setView(scrollDialog(body))
-        petDialog.setNegativeButton("Cancel", null)
-        petDialog.setPositiveButton("Save", null)
-        val dialog = petDialog.create()
-        dialog.setOnShowListener {
-            val saveButton = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
-            saveButton.setOnClickListener {
-                val validation = PetInputValidator.validate(
-                    name = name.text.toString(),
-                    birthDate = birthDate.text.toString(),
-                    weightKg = weight.text.toString()
-                )
-                name.error = validation.nameError
-                birthDate.error = validation.birthDateError
-                weight.error = validation.weightError
-                if (!validation.isValid)
-                {
-                    Toast.makeText(this, validation.firstError, Toast.LENGTH_LONG).show()
-                    return@setOnClickListener
-                }
-                saveButton.isEnabled = false
-                val petRecord = Pet(
-                    id = existing?.id ?: 0,
-                    name = name.text.toString().trim(),
-                    species = species.selectedItem.toString(),
-                    breed = breed.text.toString().trim(),
-                    sex = sex.selectedItem.toString(),
-                    birthDate = birthDate.text.toString().trim(),
-                    weightKg = weight.text.toString().toDoubleOrNull() ?: 0.0,
-                    microchipNumber = microchip.text.toString().trim(),
-                    notes = notes.text.toString().trim()
-                )
-                repository.savePet(petRecord) { result ->
-                    saveButton.isEnabled = true
-                    handleDatabaseResult(result) {
-                        dialog.dismiss()
-                        renderPetsScreen()
-                    }
-                }
-            }
-        }
-        dialog.show()
-    }
-
-    // Create or update a vaccination linked to the selected pet
-    private fun showVaccinationDialog(existing: VaccinationRecord? = null)
-    {
-        val pets = repository.pets()
-        if (pets.isEmpty())
-        {
-            return requirePetFirst()
-        }
-        val body = dialogBody()
-        val pet = body.petSpinner(pets, existing?.petId)
-        val vaccine = body.field("Vaccine name", existing?.vaccineName)
-        val administered = body.dateField("Administered date (optional)", existing?.administeredDate)
-        val due = body.dateField("Next due date (YYYY-MM-DD)", existing?.dueDate)
-        val clinic = body.field("Clinic (optional)", existing?.clinic)
-        val status = body.spinner("Status", listOf("Upcoming", "Completed", "Overdue"), existing?.status)
-        val notes = body.field("Notes (optional)", existing?.notes, lines = 2)
-        showSaveDialog(
-            title = if (existing == null) "Add vaccination" else "Edit vaccination",
-            body = body,
-            validate = {
-                val validation = HealthInputValidator.validateVaccination(
-                    vaccineName = vaccine.text.toString(),
-                    administeredDate = administered.text.toString(),
-                    dueDate = due.text.toString()
-                )
-                vaccine.error = validation.vaccineNameError
-                administered.error = validation.administeredDateError
-                due.error = validation.dueDateError
-                validation.firstError
-            },
-            save = { complete ->
-                val vaccination = VaccinationRecord(
-                    id = existing?.id ?: 0,
-                    petId = pets[pet.selectedItemPosition].id,
-                    vaccineName = vaccine.text.toString().trim(),
-                    administeredDate = administered.text.toString(),
-                    dueDate = due.text.toString(),
-                    clinic = clinic.text.toString().trim(),
-                    status = status.selectedItem.toString(),
-                    notes = notes.text.toString().trim()
-                )
-                repository.saveVaccination(vaccination) { result ->
-                    complete(result.map { Unit })
-                }
-            },
-            onSaved = { renderHealthScreen() }
-        )
-    }
-
-    // Create or update a clinic appointment after checking its date and time
-    private fun showAppointmentDialog(existing: Appointment? = null)
-    {
-        val pets = repository.pets()
-        if (pets.isEmpty())
-        {
-            return requirePetFirst()
-        }
-        val body = dialogBody()
-        val pet = body.petSpinner(pets, existing?.petId)
-        val date = body.dateField("Appointment date (YYYY-MM-DD)", existing?.appointmentDate)
-        val time = body.field("Time (HH:MM)", existing?.appointmentTime ?: "09:00")
-        val clinic = body.field("Clinic", existing?.clinic)
-        val reason = body.field("Reason for visit", existing?.reason)
-        val status = body.spinner("Status", listOf("Scheduled", "Completed", "Cancelled"), existing?.status)
-        val notes = body.field("Notes (optional)", existing?.notes, lines = 3)
-        showSaveDialog(
-            title = if (existing == null) "Book appointment" else "Edit appointment",
-            body = body,
-            validate = {
-                val validation = AppointmentInputValidator.validate(
-                    appointmentDate = date.text.toString(),
-                    appointmentTime = time.text.toString(),
-                    reason = reason.text.toString(),
-                    status = status.selectedItem.toString()
-                )
-                date.error = validation.dateError
-                time.error = validation.timeError
-                reason.error = validation.reasonError
-                validation.firstError()
-            },
-            save = { complete ->
-                val appointment = Appointment(
-                    id = existing?.id ?: 0,
-                    petId = pets[pet.selectedItemPosition].id,
-                    appointmentDate = date.text.toString(),
-                    appointmentTime = time.text.toString(),
-                    clinic = clinic.text.toString().trim(),
-                    reason = reason.text.toString().trim(),
-                    status = status.selectedItem.toString(),
-                    notes = notes.text.toString().trim()
-                )
-                repository.saveAppointment(appointment) { result ->
-                    complete(result.map { Unit })
-                }
-            },
-            onSaved = { renderHealthScreen() }
-        )
-    }
-
-    // Create or update a medical visit record for the selected pet
-    private fun showMedicalRecordDialog(existing: MedicalRecord? = null)
-    {
-        val pets = repository.pets()
-        if (pets.isEmpty())
-        {
-            return requirePetFirst()
-        }
-        val body = dialogBody()
-        val pet = body.petSpinner(pets, existing?.petId)
-        val date = body.dateField("Visit date (YYYY-MM-DD)", existing?.visitDate)
-        val veterinarian = body.field("Veterinarian", existing?.veterinarian)
-        val diagnosis = body.field("Diagnosis / visit outcome", existing?.diagnosis)
-        val treatment = body.field("Treatment", existing?.treatment, lines = 2)
-        val notes = body.field("Notes (optional)", existing?.notes, lines = 3)
-        showSaveDialog(
-            title = if (existing == null) "Add medical record" else "Edit medical record",
-            body = body,
-            validate = {
-                val validation = HealthInputValidator.validateMedicalRecord(
-                    visitDate = date.text.toString(),
-                    diagnosis = diagnosis.text.toString()
-                )
-                date.error = validation.visitDateError
-                diagnosis.error = validation.diagnosisError
-                validation.firstError
-            },
-            save = { complete ->
-                val medicalRecord = MedicalRecord(
-                    id = existing?.id ?: 0,
-                    petId = pets[pet.selectedItemPosition].id,
-                    visitDate = date.text.toString(),
-                    veterinarian = veterinarian.text.toString().trim(),
-                    diagnosis = diagnosis.text.toString().trim(),
-                    treatment = treatment.text.toString().trim(),
-                    notes = notes.text.toString().trim()
-                )
-                repository.saveMedicalRecord(medicalRecord) { result ->
-                    complete(result.map { Unit })
-                }
-            },
-            onSaved = { renderHealthScreen() }
-        )
-    }
-
-    // Save a validated form while preventing duplicate button submissions
-    private fun showSaveDialog(
-        title: String,
-        body: LinearLayout,
-        validate: () -> String?,
-        save: ((Result<Unit>) -> Unit) -> Unit,
-        onSaved: () -> Unit
-    )
-    {
-        val saveDialog = MaterialAlertDialogBuilder(this)
-        saveDialog.setTitle(title)
-        saveDialog.setView(scrollDialog(body))
-        saveDialog.setNegativeButton("Cancel", null)
-        saveDialog.setPositiveButton("Save", null)
-        val dialog = saveDialog.create()
-        dialog.setOnShowListener {
-            val saveButton = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
-            saveButton.setOnClickListener {
-                val error = validate()
-                if (error != null)
-                {
-                    Toast.makeText(this, error, Toast.LENGTH_LONG).show()
-                    return@setOnClickListener
-                }
-                saveButton.isEnabled = false
-                save { result ->
-                    saveButton.isEnabled = true
-                    handleDatabaseResult(result) {
-                        dialog.dismiss()
-                        onSaved()
-                    }
-                }
-            }
-        }
-        dialog.show()
-    }
-
-    //select the pet linked to a record
-    private fun LinearLayout.petSpinner(pets: List<Pet>, selectedId: Long?): Spinner
-    {
-        val petOptions = pets.map { "${it.name} (${it.species})" }
-        val petInput = spinner("Pet", petOptions)
-        val selectedIndex = pets.indexOfFirst { it.id == selectedId }
-        if (selectedIndex >= 0) petInput.setSelection(selectedIndex)
-        return petInput
-    }
-
-    //create a labelled dropdown
-    private fun LinearLayout.spinner(title: String, options: List<String>, selected: String? = null): Spinner
-    {
-        val titleMargin = if (childCount == 0) 0 else 10
-        addView(label(title, 12, true, R.color.paw_muted).withTopMargin(titleMargin))
-
-        val dropdown = Spinner(this@DashboardActivity)
-        dropdown.adapter = ArrayAdapter(this@DashboardActivity, android.R.layout.simple_spinner_dropdown_item, options)
-        val selectedIndex = options.indexOf(selected)
-        if (selectedIndex >= 0) dropdown.setSelection(selectedIndex)
-        dropdown.setPadding(dp(10), dp(8), dp(10), dp(8))
-        addView(dropdown, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)))
-        return dropdown
-    }
-
-    //create a form input
-    private fun LinearLayout.field(
-        hint: String,
-        value: String? = null,
-        inputType: Int = InputType.TYPE_CLASS_TEXT,
-        lines: Int = 1
-    ): EditText
-    {
-        val input = EditText(this@DashboardActivity)
-        input.hint = hint
-        input.setText(value.orEmpty())
-        input.inputType = inputType
-        input.maxLines = lines
-        input.minLines = lines
-        input.setTextColor(color(R.color.paw_text))
-        input.setHintTextColor(color(R.color.paw_muted))
-
-        val inputLayout = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        inputLayout.topMargin = dp(if (childCount == 0) 0 else 8)
-        addView(input, inputLayout)
-        return input
-    }
-
-    //choose a date with the calendar
-    private fun LinearLayout.dateField(hint: String, value: String? = null): EditText
-    {
-        val dateInput = field(hint, value)
-        dateInput.isFocusable = false
-        dateInput.setOnClickListener {
-            val initialDate = runCatching { LocalDate.parse(dateInput.text.toString()) }
-                .getOrDefault(LocalDate.now())
-            val datePicker = DatePickerDialog(
-                this@DashboardActivity,
-                { _, year, month, day -> dateInput.setText(LocalDate.of(year, month + 1, day).toString()) },
-                initialDate.year,
-                initialDate.monthValue - 1,
-                initialDate.dayOfMonth
-            )
-            datePicker.show()
-        }
-        return dateInput
-    }
-
-    //confirm before deleting a record
-    private fun confirmDelete(title: String, message: String, action: () -> Unit)
-    {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(title)
-            .setMessage(message)
-            .setNegativeButton("Keep", null)
-            .setPositiveButton("Delete") { _, _ -> action() }
-            .show()
-    }
-
-    //request a pet profile before adding health records
-    private fun requirePetFirst()
-    {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Add a pet first")
-            .setMessage("Health records must be linked to a pet profile.")
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Add pet") { _, _ -> showPetDialog() }
-            .show()
     }
 
     //create the content area with the existing screen spacing
@@ -1036,19 +1061,6 @@ class DashboardActivity : AppCompatActivity()
         show(root)
     }
 
-    //handle the result of a database update
-    private fun <T> handleDatabaseResult(result: Result<T>, onSuccess: (T) -> Unit)
-    {
-        result.onSuccess(onSuccess)
-            .onFailure {
-                Toast.makeText(
-                    this,
-                    "The database could not be updated. Check the Laravel connection and try again.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-    }
-
     //create a vertical group of views
     private fun vertical(padding: Int = 0): LinearLayout
     {
@@ -1057,23 +1069,6 @@ class DashboardActivity : AppCompatActivity()
         if (padding > 0) column.setPadding(dp(padding), dp(padding), dp(padding), dp(padding))
         column.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         return column
-    }
-
-    //create the input area inside a dialog
-    private fun dialogBody(): LinearLayout
-    {
-        val body = vertical()
-        body.setPadding(dp(2), 0, dp(2), dp(4))
-        return body
-    }
-
-    //allow a long dialog to scroll
-    private fun scrollDialog(body: View): ScrollView
-    {
-        val scrollView = ScrollView(this)
-        scrollView.setPadding(dp(20), 0, dp(20), 0)
-        scrollView.addView(body)
-        return scrollView
     }
 
     //create text with the existing font settings
@@ -1259,11 +1254,45 @@ class DashboardActivity : AppCompatActivity()
         }
     }
 
-    //check the stored date format
-    private fun isIsoDate(value: String): Boolean = runCatching { LocalDate.parse(value); true }.getOrDefault(false)
+    //5.navigation
 
-    //check the stored time format
-    private fun isTime(value: String): Boolean = runCatching { LocalTime.parse(value); true }.getOrDefault(false)
+    //confirm sign-out before returning to login
+    private fun setToolbarActions()
+    {
+        toolbar.setOnMenuItemClickListener { menuItem ->
+            if (menuItem.itemId == R.id.action_logout)
+            {
+                val signOutDialog = MaterialAlertDialogBuilder(this)
+                signOutDialog.setTitle("Sign out?")
+                signOutDialog.setMessage("Your PawCare records will remain safely stored in PostgreSQL.")
+                signOutDialog.setNegativeButton("Cancel", null)
+                signOutDialog.setPositiveButton("Sign out") { _, _ ->
+                    repository.logout { returnToLogin() }
+                }
+                signOutDialog.show()
+                true
+            }
+            else
+            {
+                false
+            }
+        }
+    }
+
+    //switch the content container from the selected tab
+    private fun setNavigationActions()
+    {
+        bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId)
+            {
+                R.id.nav_home -> renderHomeScreen()
+                R.id.nav_pets -> renderPetsScreen()
+                R.id.nav_health -> renderHealthScreen()
+                R.id.nav_ai -> renderAiScreen()
+            }
+            true
+        }
+    }
 
     //return to authentication after logout
     private fun returnToLogin()

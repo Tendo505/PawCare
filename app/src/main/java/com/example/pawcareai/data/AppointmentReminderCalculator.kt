@@ -4,7 +4,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
-// Store an appointment with the time remaining and its display message.
+//store an appointment with the time remaining and its display message
 data class AppointmentReminder(
     val appointment: Appointment,
     val daysUntil: Long,
@@ -13,7 +13,7 @@ data class AppointmentReminder(
 
 object AppointmentReminderCalculator
 {
-    // Calculate upcoming reminders in date and time order.
+    //1.calculate upcoming reminders
     fun upcoming(
         appointments: List<Appointment>,
         today: LocalDate = LocalDate.now(),
@@ -35,7 +35,7 @@ object AppointmentReminderCalculator
         return orderedReminders.take(reminderLimit)
     }
 
-    // Create a reminder only for a scheduled appointment that has not passed.
+    //2.filter scheduled visits
     private fun createReminder(
         appointment: Appointment,
         today: LocalDate
@@ -45,6 +45,7 @@ object AppointmentReminderCalculator
         val appointmentDate = parseDate(scheduledAppointment.appointmentDate)
             ?.takeUnless { it.isBefore(today) } ?: return null
 
+        //appointment date minus today
         val daysUntil = ChronoUnit.DAYS.between(today, appointmentDate)
         return AppointmentReminder(
             appointment = scheduledAppointment,
@@ -53,7 +54,7 @@ object AppointmentReminderCalculator
         )
     }
 
-    // Get the reminder message for one appointment.
+    //3.read a reminder label
     fun labelFor(
         appointment: Appointment,
         today: LocalDate = LocalDate.now()
@@ -63,7 +64,7 @@ object AppointmentReminderCalculator
         return reminder?.label
     }
 
-    // Format the remaining time as today, tomorrow, or a number of days.
+    //4.format the remaining time
     private fun createLabel(appointment: Appointment, daysUntil: Long): String
     {
         return when (daysUntil)
@@ -74,7 +75,7 @@ object AppointmentReminderCalculator
         }
     }
 
-    // Convert a stored date without stopping the reminder list on invalid data.
+    //5.read a stored date
     private fun parseDate(value: String): LocalDate?
     {
         return try

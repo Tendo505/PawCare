@@ -1,13 +1,15 @@
 package com.example.pawcareai.data
 
-// Store the signed-in user's profile.
+//1.account and connection
+
+//store the signed-in user's profile
 data class UserAccount(
     val id: Long = 0,
     val name: String,
     val email: String
 )
 
-// Store the connection status returned by the backend.
+//store the connection status returned by the backend
 data class SystemHealth(
     val overall: String = "checking",
     val laravel: String = "checking",
@@ -17,7 +19,9 @@ data class SystemHealth(
     val checkedAt: String = ""
 )
 
-// Store a pet profile for display and editing.
+//2.pet and health records
+
+//store a pet profile for display and editing
 data class Pet(
     val id: Long = 0,
     val ownerEmail: String = "",
@@ -31,7 +35,7 @@ data class Pet(
     val notes: String = ""
 )
 
-// Store a pet's vaccination history and next due date.
+//store a pet's vaccination history and next due date
 data class VaccinationRecord(
     val id: Long = 0,
     val ownerEmail: String = "",
@@ -44,7 +48,7 @@ data class VaccinationRecord(
     val notes: String = ""
 )
 
-// Store a pet's clinic visit and treatment details.
+//store a pet's clinic visit and treatment details
 data class MedicalRecord(
     val id: Long = 0,
     val ownerEmail: String = "",
@@ -56,7 +60,7 @@ data class MedicalRecord(
     val notes: String = ""
 )
 
-// Store an appointment and its current status.
+//store an appointment and its current status
 data class Appointment(
     val id: Long = 0,
     val ownerEmail: String = "",
@@ -69,13 +73,15 @@ data class Appointment(
     val notes: String = ""
 )
 
-// Store one possible breed and its confidence score.
+//3.breed results
+
+//store one possible breed and its confidence score
 data class BreedPredictionOption(
     val breed: String,
     val confidence: Double
 )
 
-// Store a saved scan result and its alternative breed predictions.
+//store a saved scan result and its alternative breed predictions
 data class BreedPrediction(
     val id: Long = 0,
     val ownerEmail: String = "",
@@ -91,7 +97,9 @@ data class BreedPrediction(
     val disclaimer: String = ""
 )
 
-// Store the totals shown on the dashboard.
+//4.dashboard totals
+
+//store the totals shown on the dashboard
 data class DashboardStats(
     val petCount: Int,
     val upcomingVaccinations: Int,

@@ -21,7 +21,9 @@ import retrofit2.http.Part
 import retrofit2.http.Path
 import okhttp3.RequestBody
 
-// Authentication details
+//1.request and response data
+
+//authentication details
 data class AuthRequest(
     val email: String,
     val password: String,
@@ -41,7 +43,7 @@ data class ApiUser(
 
 data class ApiMessage(val message: String)
 
-// Service connection details
+//service connection details
 data class ApiLaravelHealth(val status: String, val version: String = "")
 data class ApiDatabaseHealth(val status: String, val driver: String = "")
 data class ApiAiHealth(
@@ -61,7 +63,7 @@ data class ApiSystemHealth(
     val checkedAt: String = ""
 )
 
-// Pet records
+//pet records
 data class ApiPet(
     val id: Long,
     val name: String,
@@ -85,7 +87,7 @@ data class PetRequest(
     val notes: String? = null
 )
 
-// Vaccination records
+//vaccination records
 data class ApiVaccination(
     val id: Long,
     val petId: Long,
@@ -107,7 +109,7 @@ data class VaccinationRequest(
     val notes: String? = null
 )
 
-// Medical records
+//medical records
 data class ApiMedicalRecord(
     val id: Long,
     val petId: Long,
@@ -127,7 +129,7 @@ data class MedicalRecordRequest(
     val notes: String? = null
 )
 
-// Appointment records
+//appointment records
 data class ApiAppointment(
     val id: Long,
     val petId: Long,
@@ -149,7 +151,7 @@ data class AppointmentRequest(
     val notes: String? = null
 )
 
-// Breed prediction details
+//breed prediction details
 data class ApiPredictionItem(
     val breed: String,
     val confidence: Double
@@ -175,106 +177,108 @@ data class ApiAiPrediction(
 )
 data class ApiAiPredictionPage(val data: List<ApiAiPrediction> = emptyList())
 
+//2.api endpoints
+
 interface PawCareApi
 {
-    // Read service status
+    //read service status
     @GET("health")
     fun systemHealth(): Call<ApiSystemHealth>
 
-    // Create account
+    //create account
     @POST("register")
     fun register(@Body request: AuthRequest): Call<AuthResponse>
 
-    // Sign in
+    //sign in
     @POST("login")
     fun login(@Body request: AuthRequest): Call<AuthResponse>
 
-    // Read active account
+    //read active account
     @GET("me")
     fun me(): Call<ApiUser>
 
-    // Sign out
+    //sign out
     @POST("logout")
     fun logout(): Call<ApiMessage>
 
-    // Read pets
+    //read pets
     @GET("pets")
     fun pets(): Call<List<ApiPet>>
 
-    // Create pet
+    //create pet
     @POST("pets")
     fun createPet(@Body pet: PetRequest): Call<ApiPet>
 
-    // Update pet
+    //update pet
     @PUT("pets/{id}")
     fun updatePet(@Path("id") id: Long, @Body pet: PetRequest): Call<ApiPet>
 
-    // Delete pet
+    //delete pet
     @DELETE("pets/{id}")
     fun deletePet(@Path("id") id: Long): Call<Unit>
 
-    // Read vaccinations
+    //read vaccinations
     @GET("vaccinations")
     fun vaccinations(): Call<List<ApiVaccination>>
 
-    // Create vaccination
+    //create vaccination
     @POST("vaccinations")
     fun createVaccination(@Body record: VaccinationRequest): Call<ApiVaccination>
 
-    // Update vaccination
+    //update vaccination
     @PUT("vaccinations/{id}")
     fun updateVaccination(
         @Path("id") id: Long,
         @Body record: VaccinationRequest
     ): Call<ApiVaccination>
 
-    // Delete vaccination
+    //delete vaccination
     @DELETE("vaccinations/{id}")
     fun deleteVaccination(@Path("id") id: Long): Call<Unit>
 
-    // Read medical records
+    //read medical records
     @GET("medical-records")
     fun medicalRecords(): Call<List<ApiMedicalRecord>>
 
-    // Create medical record
+    //create medical record
     @POST("medical-records")
     fun createMedicalRecord(@Body record: MedicalRecordRequest): Call<ApiMedicalRecord>
 
-    // Update medical record
+    //update medical record
     @PUT("medical-records/{id}")
     fun updateMedicalRecord(
         @Path("id") id: Long,
         @Body record: MedicalRecordRequest
     ): Call<ApiMedicalRecord>
 
-    // Delete medical record
+    //delete medical record
     @DELETE("medical-records/{id}")
     fun deleteMedicalRecord(@Path("id") id: Long): Call<Unit>
 
-    // Read appointments
+    //read appointments
     @GET("appointments")
     fun appointments(): Call<List<ApiAppointment>>
 
-    // Create appointment
+    //create appointment
     @POST("appointments")
     fun createAppointment(@Body appointment: AppointmentRequest): Call<ApiAppointment>
 
-    // Update appointment
+    //update appointment
     @PUT("appointments/{id}")
     fun updateAppointment(
         @Path("id") id: Long,
         @Body appointment: AppointmentRequest
     ): Call<ApiAppointment>
 
-    // Delete appointment
+    //delete appointment
     @DELETE("appointments/{id}")
     fun deleteAppointment(@Path("id") id: Long): Call<Unit>
 
-    // Read prediction history
+    //read prediction history
     @GET("ai-predictions")
     fun aiPredictions(): Call<ApiAiPredictionPage>
 
-    // Create breed prediction
+    //create breed prediction
     @Multipart
     @POST("ai-predictions")
     fun createAiPrediction(
@@ -283,12 +287,14 @@ interface PawCareApi
     ): Call<ApiAiPrediction>
 }
 
+//3.network setup
+
 object NetworkModule
 {
     @Volatile
     private var authToken: String? = null
 
-    // Update the token used by authenticated requests
+    //update the token used by authenticated requests
     fun setAuthToken(token: String?)
     {
         authToken = token
@@ -296,12 +302,12 @@ object NetworkModule
 
     private val backendClient: OkHttpClient = createBackendClient()
 
-    // Create the API only when it is first needed
+    //create the api only when it is first needed
     val backend: PawCareApi by lazy {
         retrofit(BuildConfig.API_BASE_URL, backendClient).create(PawCareApi::class.java)
     }
 
-    // Configure requests and basic connection logging
+    //configure requests and basic connection logging
     private fun createBackendClient(): OkHttpClient
     {
         val logging: HttpLoggingInterceptor = HttpLoggingInterceptor()
@@ -317,7 +323,7 @@ object NetworkModule
         return clientBuilder.build()
     }
 
-    // Add API headers and route emulator traffic to Herd
+    //add api headers and route emulator traffic to herd
     private fun prepareRequest(originalRequest: Request): Request
     {
         val requestBuilder: Request.Builder = originalRequest.newBuilder()
@@ -332,7 +338,7 @@ object NetworkModule
         return requestBuilder.build()
     }
 
-    // Convert Laravel JSON field names to Kotlin properties
+    //convert laravel json field names to kotlin properties
     private fun retrofit(baseUrl: String, client: OkHttpClient): Retrofit
     {
         val gson: Gson = GsonBuilder()

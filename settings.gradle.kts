@@ -1,3 +1,4 @@
+// Resolve Android and Kotlin build plugins
 pluginManagement {
     repositories {
         google {
@@ -11,6 +12,7 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+// Resolve application libraries from the shared repositories
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -19,6 +21,6 @@ dependencyResolutionManagement {
     }
 }
 
+// Name the project and include its Android module
 rootProject.name = "PawCare"
 include(":app")
- 

@@ -4,6 +4,8 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeParseException
 
+//1.validation results
+
 data class AppointmentValidationResult(
     val dateError: String? = null,
     val timeError: String? = null,
@@ -13,16 +15,18 @@ data class AppointmentValidationResult(
     val isValid: Boolean
         get() = dateError == null && timeError == null && reasonError == null
 
-    // Get the first message to display beside the appointment form.
+    //get the first message to display beside the appointment form
     fun firstError(): String?
     {
         return dateError ?: timeError ?: reasonError
     }
 }
 
+//2.input rules
+
 object AppointmentInputValidator
 {
-    // Validate the appointment date, time, and reason before saving.
+    //validate the appointment date, time, and reason before saving
     fun validate(
         appointmentDate: String,
         appointmentTime: String,
@@ -68,7 +72,7 @@ object AppointmentInputValidator
         )
     }
 
-    // Convert the entered date without throwing an error for invalid input.
+    //return null for an invalid date
     private fun parseDate(value: String): LocalDate?
     {
         return try
@@ -81,7 +85,7 @@ object AppointmentInputValidator
         }
     }
 
-    // Convert the entered 24-hour time without throwing an error for invalid input.
+    //return null for an invalid time
     private fun parseTime(value: String): LocalTime?
     {
         return try

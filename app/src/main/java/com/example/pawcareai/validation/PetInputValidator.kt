@@ -3,6 +3,8 @@ package com.example.pawcareai.validation
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
+//1.validation results
+
 data class PetValidationResult(
     val nameError: String? = null,
     val birthDateError: String? = null,
@@ -16,9 +18,11 @@ data class PetValidationResult(
         get() = nameError ?: birthDateError ?: weightError
 }
 
+//2.input rules
+
 object PetInputValidator
 {
-    // Validate the pet details before creating or updating a profile.
+    //validate the pet details before creating or updating a profile
     fun validate(
         name: String,
         birthDate: String,
@@ -37,7 +41,7 @@ object PetInputValidator
         )
     }
 
-    // Validate an optional birth date and reject future dates.
+    //validate an optional birth date and reject future dates
     private fun validateBirthDate(birthDate: String, today: LocalDate): String?
     {
         val parsedBirthDate = parseDate(birthDate)
@@ -51,7 +55,7 @@ object PetInputValidator
         }
     }
 
-    // Validate an optional weight in kilograms.
+    //validate an optional weight in kilograms
     private fun validateWeight(weight: String): String?
     {
         val parsedWeight = weight.toDoubleOrNull()
@@ -65,7 +69,7 @@ object PetInputValidator
         }
     }
 
-    // Convert an optional date without throwing an error for invalid input.
+    //return null for a missing or invalid date
     private fun parseDate(value: String): LocalDate?
     {
         value.takeUnless(String::isBlank) ?: return null

@@ -1,5 +1,7 @@
 package com.example.pawcareai.validation
 
+//1.validation results
+
 data class AuthValidationResult(
     val nameError: String? = null,
     val emailError: String? = null,
@@ -10,6 +12,8 @@ data class AuthValidationResult(
         get() = nameError == null && emailError == null && passwordError == null
 }
 
+//2.input rules
+
 object AuthInputValidator
 {
     private const val MIN_PASSWORD_LENGTH = 8
@@ -19,7 +23,7 @@ object AuthInputValidator
         RegexOption.IGNORE_CASE
     )
 
-    // Validate the sign-in or registration form before sending the request.
+    //validate account input
     fun validate(
         name: String,
         email: String,
@@ -37,7 +41,7 @@ object AuthInputValidator
         )
     }
 
-    // Validate the name when the user creates an account.
+    //validate the name when the user creates an account
     private fun validateName(name: String, registerMode: Boolean): String?
     {
         return when
@@ -47,7 +51,7 @@ object AuthInputValidator
         }
     }
 
-    // Validate the email format, including spaces and misplaced dots.
+    //validate the email format, including spaces and misplaced dots
     private fun validateEmail(email: String): String?
     {
         val localPart = email.substringBefore('@')
@@ -64,7 +68,7 @@ object AuthInputValidator
         }
     }
 
-    // Validate password strength during registration and required input during sign-in.
+    //check password strength only when registering
     private fun validatePassword(password: String, registerMode: Boolean): String?
     {
         return when

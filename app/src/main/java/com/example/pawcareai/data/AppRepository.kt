@@ -35,12 +35,14 @@ class ApiRequestException(
 
 class AppRepository(context: Context)
 {
-    // Authentication settings and API connection
+    //1.session setup
+
+    //authentication settings and api connection
     private val preferences: SharedPreferences = context.applicationContext
         .getSharedPreferences(AUTH_PREFERENCES, Context.MODE_PRIVATE)
     private val api: PawCareApi = NetworkModule.backend
 
-    // Current account and records loaded from PostgreSQL
+    //temporary screen data loaded through laravel
     private var activeUser: UserAccount? = null
     private var petCache: List<Pet> = emptyList()
     private var vaccinationCache: List<VaccinationRecord> = emptyList()
@@ -51,7 +53,7 @@ class AppRepository(context: Context)
 
     init
     {
-        // Remove records from the old offline version
+        //remove records from the old offline version
         val legacyPreferences: SharedPreferences = context.applicationContext
             .getSharedPreferences(LEGACY_DATA_PREFERENCES, Context.MODE_PRIVATE)
         val legacyEditor: SharedPreferences.Editor = legacyPreferences.edit()
@@ -61,14 +63,14 @@ class AppRepository(context: Context)
         NetworkModule.setAuthToken(preferences.getString(KEY_TOKEN, null))
     }
 
-    // Read the signed-in account
+    //read the signed-in account
     val currentUser: UserAccount?
         get()
         {
             return activeUser
         }
 
-    // Check whether an authentication token has been saved
+    //check whether an authentication token has been saved
     val hasSession: Boolean
         get()
         {
@@ -76,7 +78,9 @@ class AppRepository(context: Context)
             return !token.isNullOrBlank()
         }
 
-    // Restore the account using its saved token
+    //2.account actions
+
+    //restore the account using its saved token
     fun restoreSession(onResult: (Result<UserAccount>) -> Unit)
     {
         if (!hasSession)
@@ -98,7 +102,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Create a new account in PostgreSQL
+    //create a new account in postgresql
     fun register(name: String, email: String, password: String, onResult: (Result<UserAccount>) -> Unit)
     {
         val request: AuthRequest = AuthRequest(email.trim().lowercase(), password, name.trim())
@@ -115,7 +119,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Sign in and save the returned token
+    //sign in and save the returned token
     fun login(email: String, password: String, onResult: (Result<UserAccount>) -> Unit)
     {
         val request: AuthRequest = AuthRequest(email.trim().lowercase(), password)
@@ -132,7 +136,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Sign out and clear the local session
+    //sign out and clear the local session
     fun logout(onComplete: () -> Unit)
     {
         if (!hasSession)
@@ -163,7 +167,9 @@ class AppRepository(context: Context)
         })
     }
 
-    // Read all records before replacing the current cache
+    //3.load records
+
+    //read all records before replacing the current cache
     fun refreshData(onResult: (Result<Unit>) -> Unit)
     {
         api.pets().enqueueResult { result ->
@@ -176,7 +182,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Read vaccination records
+    //read vaccination records
     private fun loadVaccinations(pets: List<ApiPet>, onResult: (Result<Unit>) -> Unit)
     {
         api.vaccinations().enqueueResult { result ->
@@ -189,7 +195,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Read medical records
+    //read medical records
     private fun loadMedicalRecords(
         pets: List<ApiPet>,
         vaccinations: List<ApiVaccination>,
@@ -206,7 +212,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Read appointments
+    //read appointments
     private fun loadAppointments(
         pets: List<ApiPet>,
         vaccinations: List<ApiVaccination>,
@@ -224,7 +230,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Read prediction history and finish refreshing records
+    //read prediction history and finish refreshing records
     private fun loadPredictions(
         pets: List<ApiPet>,
         vaccinations: List<ApiVaccination>,
@@ -244,7 +250,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Update the in-memory records after every request succeeds
+    //replace cached records only after all requests succeed
     private fun updateCache(
         pets: List<ApiPet>,
         vaccinations: List<ApiVaccination>,
@@ -260,31 +266,33 @@ class AppRepository(context: Context)
         predictionCache = predictions.map { prediction -> prediction.toBreedPrediction() }
     }
 
-    // Read pets in alphabetical order
+    //4.read cached records
+
+    //read pets in alphabetical order
     fun pets(): List<Pet>
     {
         return petCache.sortedBy { pet -> pet.name.lowercase() }
     }
 
-    // Find a pet by its record ID
+    //find a pet by its record id
     fun pet(id: Long): Pet?
     {
         return petCache.firstOrNull { pet -> pet.id == id }
     }
 
-    // Read vaccinations by due date
+    //read vaccinations by due date
     fun vaccinations(): List<VaccinationRecord>
     {
         return vaccinationCache.sortedBy { record -> record.dueDate }
     }
 
-    // Read the latest medical records first
+    //read the latest medical records first
     fun medicalRecords(): List<MedicalRecord>
     {
         return medicalRecordCache.sortedByDescending { record -> record.visitDate }
     }
 
-    // Read appointments by date, then time
+    //read appointments by date, then time
     fun appointments(): List<Appointment>
     {
         val appointmentOrder: Comparator<Appointment> = compareBy(
@@ -294,19 +302,19 @@ class AppRepository(context: Context)
         return appointmentCache.sortedWith(appointmentOrder)
     }
 
-    // Read the latest predictions first
+    //read the latest predictions first
     fun predictions(): List<BreedPrediction>
     {
         return predictionCache.sortedByDescending { prediction -> prediction.createdAt }
     }
 
-    // Read the most recent connection check
+    //read the most recent connection check
     fun systemHealth(): SystemHealth?
     {
         return systemHealthCache
     }
 
-    // Check Laravel, PostgreSQL and AI connections
+    //check laravel, postgresql and ai connections
     fun checkSystemHealth(onResult: (Result<SystemHealth>) -> Unit)
     {
         api.systemHealth().enqueueResult { result ->
@@ -326,7 +334,9 @@ class AppRepository(context: Context)
         }
     }
 
-    // Create or update a pet, then refresh its cached record
+    //5.save and delete records
+
+    //create or update a pet, then refresh its cached record
     fun savePet(pet: Pet, onResult: (Result<Pet>) -> Unit)
     {
         val saveCall: Call<ApiPet> = if (pet.id > 0)
@@ -347,7 +357,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Delete a pet and remove its related records from the cache
+    //delete a pet and remove its related records from the cache
     fun deletePet(id: Long, onResult: (Result<Unit>) -> Unit)
     {
         api.deletePet(id).enqueueEmpty { result ->
@@ -361,7 +371,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Create or update a vaccination record
+    //create or update a vaccination record
     fun saveVaccination(record: VaccinationRecord, onResult: (Result<VaccinationRecord>) -> Unit)
     {
         val saveCall: Call<ApiVaccination> = if (record.id > 0)
@@ -386,7 +396,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Delete a vaccination record
+    //delete a vaccination record
     fun deleteVaccination(id: Long, onResult: (Result<Unit>) -> Unit)
     {
         api.deleteVaccination(id).enqueueEmpty { result ->
@@ -397,7 +407,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Create or update a medical record
+    //create or update a medical record
     fun saveMedicalRecord(record: MedicalRecord, onResult: (Result<MedicalRecord>) -> Unit)
     {
         val saveCall: Call<ApiMedicalRecord> = if (record.id > 0)
@@ -422,7 +432,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Delete a medical record
+    //delete a medical record
     fun deleteMedicalRecord(id: Long, onResult: (Result<Unit>) -> Unit)
     {
         api.deleteMedicalRecord(id).enqueueEmpty { result ->
@@ -433,7 +443,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Create or update an appointment
+    //create or update an appointment
     fun saveAppointment(appointment: Appointment, onResult: (Result<Appointment>) -> Unit)
     {
         val saveCall: Call<ApiAppointment> = if (appointment.id > 0)
@@ -458,7 +468,7 @@ class AppRepository(context: Context)
         }
     }
 
-    // Delete an appointment
+    //delete an appointment
     fun deleteAppointment(id: Long, onResult: (Result<Unit>) -> Unit)
     {
         api.deleteAppointment(id).enqueueEmpty { result ->
@@ -469,7 +479,9 @@ class AppRepository(context: Context)
         }
     }
 
-    // Upload a photo and cache its saved prediction
+    //6.breed analysis
+
+    //upload a photo and cache its saved prediction
     fun analyzeBreed(
         imageBytes: ByteArray,
         mimeType: String,
@@ -508,7 +520,9 @@ class AppRepository(context: Context)
         })
     }
 
-    // Calculate dashboard totals from the loaded records
+    //7.dashboard values
+
+    //calculate dashboard totals from the loaded records
     fun stats(): DashboardStats
     {
         return DashboardCalculator.calculate(
@@ -519,13 +533,15 @@ class AppRepository(context: Context)
         )
     }
 
-    // Read a pet name for record labels
+    //read a pet name for record labels
     fun petName(petId: Long): String
     {
         return pet(petId)?.name ?: "Unknown pet"
     }
 
-    // Save the session token and active account
+    //8.session updates
+
+    //save the session token and active account
     private fun acceptAuthentication(token: String, user: ApiUser)
     {
         val sessionEditor: SharedPreferences.Editor = preferences.edit()
@@ -536,7 +552,7 @@ class AppRepository(context: Context)
         activeUser = user.toUserAccount()
     }
 
-    // Remove the token and records belonging to the current session
+    //remove the token and records belonging to the current session
     private fun clearSession()
     {
         val sessionEditor: SharedPreferences.Editor = preferences.edit()
@@ -552,7 +568,9 @@ class AppRepository(context: Context)
         predictionCache = emptyList()
     }
 
-    // Send a request and return its response body asynchronously
+    //9.request callbacks
+
+    //send a request and return its response body asynchronously
     private fun <T> Call<T>.enqueueResult(onResult: (Result<T>) -> Unit)
     {
         enqueue(object : Callback<T>
@@ -577,7 +595,7 @@ class AppRepository(context: Context)
         })
     }
 
-    // Send a request that does not return a response body
+    //send a request that does not return a response body
     private fun Call<Unit>.enqueueEmpty(onResult: (Result<Unit>) -> Unit)
     {
         enqueue(object : Callback<Unit>
@@ -601,13 +619,15 @@ class AppRepository(context: Context)
         })
     }
 
-    // Convert API account details for the app
+    //10.data mapping
+
+    //convert api account details for the app
     private fun ApiUser.toUserAccount(): UserAccount
     {
         return UserAccount(id = id, name = name, email = email)
     }
 
-    // Convert an API pet record for the app
+    //convert an api pet record for the app
     private fun ApiPet.toPet(): Pet
     {
         return Pet(
@@ -624,7 +644,7 @@ class AppRepository(context: Context)
         )
     }
 
-    // Prepare pet details for saving
+    //prepare pet details for saving
     private fun Pet.toRequest(): PetRequest
     {
         return PetRequest(
@@ -639,7 +659,7 @@ class AppRepository(context: Context)
         )
     }
 
-    // Convert an API vaccination record for the app
+    //convert an api vaccination record for the app
     private fun ApiVaccination.toVaccinationRecord(): VaccinationRecord
     {
         return VaccinationRecord(
@@ -655,7 +675,7 @@ class AppRepository(context: Context)
         )
     }
 
-    // Prepare vaccination details for saving
+    //prepare vaccination details for saving
     private fun VaccinationRecord.toRequest(): VaccinationRequest
     {
         return VaccinationRequest(
@@ -669,7 +689,7 @@ class AppRepository(context: Context)
         )
     }
 
-    // Convert an API medical record for the app
+    //convert an api medical record for the app
     private fun ApiMedicalRecord.toMedicalRecord(): MedicalRecord
     {
         return MedicalRecord(
@@ -684,7 +704,7 @@ class AppRepository(context: Context)
         )
     }
 
-    // Prepare medical details for saving
+    //prepare medical details for saving
     private fun MedicalRecord.toRequest(): MedicalRecordRequest
     {
         return MedicalRecordRequest(
@@ -697,7 +717,7 @@ class AppRepository(context: Context)
         )
     }
 
-    // Convert an API appointment for the app
+    //convert an api appointment for the app
     private fun ApiAppointment.toAppointment(): Appointment
     {
         return Appointment(
@@ -713,7 +733,7 @@ class AppRepository(context: Context)
         )
     }
 
-    // Prepare appointment details for saving
+    //prepare appointment details for saving
     private fun Appointment.toRequest(): AppointmentRequest
     {
         return AppointmentRequest(
@@ -727,7 +747,7 @@ class AppRepository(context: Context)
         )
     }
 
-    // Convert a saved API prediction for the app
+    //convert a saved api prediction for the app
     private fun ApiAiPrediction.toBreedPrediction(): BreedPrediction
     {
         return BreedPrediction(
@@ -748,7 +768,7 @@ class AppRepository(context: Context)
         )
     }
 
-    // Convert service connection details for the dashboard
+    //convert service connection details for the dashboard
     private fun ApiSystemHealth.toSystemHealth(): SystemHealth
     {
         return SystemHealth(
@@ -761,13 +781,15 @@ class AppRepository(context: Context)
         )
     }
 
-    // Read an error returned by breed recognition
+    //11.errors and cache helpers
+
+    //read an error returned by breed recognition
     private fun <T> Response<T>.aiFailure(): Throwable
     {
         return apiFailure("Breed recognition failed with HTTP ${code()}.")
     }
 
-    // Read server validation messages and field errors
+    //read server validation messages and field errors
     private fun <T> Response<T>.apiFailure(
         fallback: String = "The server could not complete this request (HTTP ${code()})."
     ): Throwable
@@ -799,13 +821,13 @@ class AppRepository(context: Context)
         }
     }
 
-    // Send empty optional fields as null
+    //send empty optional fields as null
     private fun String.nullIfBlank(): String?
     {
         return ifBlank { null }
     }
 
-    // Replace a cached record or append a newly created record
+    //replace a cached record or append a newly created record
     private fun <T> List<T>.replaceOrAdd(value: T, id: (T) -> Long): List<T>
     {
         val recordIndex: Int = indexOfFirst { record -> id(record) == id(value) }
@@ -820,7 +842,9 @@ class AppRepository(context: Context)
         }
     }
 
-    // Preference names used by the authentication session
+    //12.preference keys
+
+    //preference names used by the authentication session
     companion object
     {
         private const val AUTH_PREFERENCES = "pawcare_auth"

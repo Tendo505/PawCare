@@ -21,7 +21,9 @@ class PawCareLogicTest
 {
     private val today = LocalDate.of(2026, 8, 31)
 
-    // Check required account details
+    //1.account validation
+
+    //check required account details
     @Test
     fun registrationRequiresValidDetails()
     {
@@ -32,7 +34,7 @@ class PawCareLogicTest
         assertTrue(valid.isValid)
     }
 
-    // Reject invalid email addresses and weak registration passwords
+    //reject invalid email addresses and weak registration passwords
     @Test
     fun registrationRejectsMalformedEmailAndWeakPassword()
     {
@@ -53,7 +55,9 @@ class PawCareLogicTest
         assertEquals("Password must contain at least one letter.", weakPassword.passwordError)
     }
 
-    // Reject impossible pet details
+    //2.pet validation
+
+    //reject impossible pet details
     @Test
     fun petRejectsFutureBirthDateAndInvalidWeight()
     {
@@ -63,7 +67,7 @@ class PawCareLogicTest
         assertEquals("Enter a valid weight.", result.weightError)
     }
 
-    // Allow optional pet fields to remain empty
+    //allow optional pet fields to remain empty
     @Test
     fun petAcceptsValidOptionalDetails()
     {
@@ -73,7 +77,9 @@ class PawCareLogicTest
         assertNull(result.firstError)
     }
 
-    // Reject a scheduled visit in the past
+    //3.health and appointment validation
+
+    //reject a scheduled visit in the past
     @Test
     fun scheduledAppointmentCannotBeInPast()
     {
@@ -88,7 +94,7 @@ class PawCareLogicTest
         assertEquals("A scheduled appointment cannot be in the past.", result.dateError)
     }
 
-    // Check the vaccination date order
+    //check the vaccination date order
     @Test
     fun vaccinationDueDateCannotPrecedeAdministeredDate()
     {
@@ -102,7 +108,9 @@ class PawCareLogicTest
         assertEquals("Due date cannot be before the administered date.", result.dueDateError)
     }
 
-    // Exclude past and cancelled visits from reminders
+    //4.reminder calculations
+
+    //exclude past and cancelled visits from reminders
     @Test
     fun remindersKeepOnlyUpcomingScheduledVisits()
     {
@@ -118,7 +126,7 @@ class PawCareLogicTest
         assertEquals("Tomorrow at 10:00", reminders.single().label)
     }
 
-    // Display the nearest visits first within the reminder limit
+    //display the nearest visits first within the reminder limit
     @Test
     fun remindersAreSortedAndLimited()
     {
@@ -133,7 +141,7 @@ class PawCareLogicTest
         assertEquals(listOf(3L, 2L), reminders.map { it.appointment.id })
     }
 
-    // Skip a reminder whose stored date cannot be read
+    //skip a reminder whose stored date cannot be read
     @Test
     fun invalidAppointmentDateIsIgnored()
     {
@@ -149,7 +157,9 @@ class PawCareLogicTest
         assertTrue(reminders.isEmpty())
     }
 
-    // Calculate totals from the current records and statuses
+    //5.dashboard calculations
+
+    //calculate totals from the current records and statuses
     @Test
     fun dashboardCalculatesCurrentTotals()
     {
