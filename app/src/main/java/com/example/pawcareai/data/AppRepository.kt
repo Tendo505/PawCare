@@ -348,13 +348,11 @@ class AppRepository(context: Context)
             api.createPet(pet.toRequest())
         }
 
-        saveCall.enqueueResult { result ->
-            val petResult: Result<Pet> = result.map { savedPet -> savedPet.toPet() }
-            petResult.onSuccess { savedPet ->
-                petCache = petCache.replaceOrAdd(savedPet) { cachedPet -> cachedPet.id }
-            }
-            onResult(petResult)
-        }
+        saveCall.saveResult(
+            convert = { it.toPet() },
+            updateCache = { saved -> petCache = petCache.replaceOrAdd(saved) { it.id } },
+            onResult = onResult
+        )
     }
 
     //delete a pet and remove its related records from the cache
@@ -383,17 +381,11 @@ class AppRepository(context: Context)
             api.createVaccination(record.toRequest())
         }
 
-        saveCall.enqueueResult { result ->
-            val vaccinationResult: Result<VaccinationRecord> = result.map { savedRecord ->
-                savedRecord.toVaccinationRecord()
-            }
-            vaccinationResult.onSuccess { savedRecord ->
-                vaccinationCache = vaccinationCache.replaceOrAdd(savedRecord) { cachedRecord ->
-                    cachedRecord.id
-                }
-            }
-            onResult(vaccinationResult)
-        }
+        saveCall.saveResult(
+            convert = { it.toVaccinationRecord() },
+            updateCache = { saved -> vaccinationCache = vaccinationCache.replaceOrAdd(saved) { it.id } },
+            onResult = onResult
+        )
     }
 
     //delete a vaccination record
@@ -419,17 +411,11 @@ class AppRepository(context: Context)
             api.createMedicalRecord(record.toRequest())
         }
 
-        saveCall.enqueueResult { result ->
-            val medicalResult: Result<MedicalRecord> = result.map { savedRecord ->
-                savedRecord.toMedicalRecord()
-            }
-            medicalResult.onSuccess { savedRecord ->
-                medicalRecordCache = medicalRecordCache.replaceOrAdd(savedRecord) { cachedRecord ->
-                    cachedRecord.id
-                }
-            }
-            onResult(medicalResult)
-        }
+        saveCall.saveResult(
+            convert = { it.toMedicalRecord() },
+            updateCache = { saved -> medicalRecordCache = medicalRecordCache.replaceOrAdd(saved) { it.id } },
+            onResult = onResult
+        )
     }
 
     //delete a medical record
@@ -455,17 +441,11 @@ class AppRepository(context: Context)
             api.createAppointment(appointment.toRequest())
         }
 
-        saveCall.enqueueResult { result ->
-            val appointmentResult: Result<Appointment> = result.map { savedAppointment ->
-                savedAppointment.toAppointment()
-            }
-            appointmentResult.onSuccess { savedAppointment ->
-                appointmentCache = appointmentCache.replaceOrAdd(savedAppointment) { cachedAppointment ->
-                    cachedAppointment.id
-                }
-            }
-            onResult(appointmentResult)
-        }
+        saveCall.saveResult(
+            convert = { it.toAppointment() },
+            updateCache = { saved -> appointmentCache = appointmentCache.replaceOrAdd(saved) { it.id } },
+            onResult = onResult
+        )
     }
 
     //delete an appointment
@@ -566,6 +546,20 @@ class AppRepository(context: Context)
         medicalRecordCache = emptyList()
         appointmentCache = emptyList()
         predictionCache = emptyList()
+    }
+
+    //convert and cache a saved record only after a successful response
+    private fun <ApiValue, Record> Call<ApiValue>.saveResult(
+        convert: (ApiValue) -> Record,
+        updateCache: (Record) -> Unit,
+        onResult: (Result<Record>) -> Unit
+    )
+    {
+        enqueueResult { result ->
+            val savedResult = result.map(convert)
+            savedResult.onSuccess(updateCache)
+            onResult(savedResult)
+        }
     }
 
     //9.request callbacks

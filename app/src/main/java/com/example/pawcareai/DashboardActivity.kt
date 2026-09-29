@@ -657,35 +657,35 @@ class DashboardActivity : AppCompatActivity()
         root.addView(label("Vaccinations, visits, and appointments for every pet.", 15, false, R.color.paw_muted).withTopMargin(4))
 
         root.addView(moduleHeader("💉 Vaccinations", "Add vaccine") { showVaccinationDialog() }.withTopMargin(24))
-        val vaccinations = repository.vaccinations()
-        if (vaccinations.isEmpty())
-        {
-            root.addView(emptyCard("No vaccination records", "Add past doses and future due dates.").withTopMargin(10))
-        }
-        vaccinations.forEach { vaccination ->
-            root.addView(vaccinationCard(vaccination).withTopMargin(10))
-        }
+        showRecords(root, repository.vaccinations(), "No vaccination records",
+            "Add past doses and future due dates.", ::vaccinationCard)
 
         root.addView(moduleHeader("📅 Appointments", "Book visit") { showAppointmentDialog() }.withTopMargin(28))
-        val appointments = repository.appointments()
-        if (appointments.isEmpty())
-        {
-            root.addView(emptyCard("No appointments", "Schedule a clinic visit and keep the details handy.").withTopMargin(10))
-        }
-        appointments.forEach { appointment ->
-            root.addView(appointmentCard(appointment).withTopMargin(10))
-        }
+        showRecords(root, repository.appointments(), "No appointments",
+            "Schedule a clinic visit and keep the details handy.", ::appointmentCard)
 
         root.addView(moduleHeader("🩺 Medical records", "Add record") { showMedicalRecordDialog() }.withTopMargin(28))
-        val records = repository.medicalRecords()
+        showRecords(root, repository.medicalRecords(), "No medical history",
+            "Record diagnoses and treatments after a clinic visit.", ::medicalCard)
+        show(root)
+    }
+
+    //display records or the matching empty message with the same spacing
+    private fun <T> showRecords(
+        root: LinearLayout,
+        records: List<T>,
+        emptyTitle: String,
+        emptyMessage: String,
+        createCard: (T) -> View
+    )
+    {
         if (records.isEmpty())
         {
-            root.addView(emptyCard("No medical history", "Record diagnoses and treatments after a clinic visit.").withTopMargin(10))
+            root.addView(emptyCard(emptyTitle, emptyMessage).withTopMargin(10))
         }
-        records.forEach { medicalRecord ->
-            root.addView(medicalCard(medicalRecord).withTopMargin(10))
+        records.forEach { record ->
+            root.addView(createCard(record).withTopMargin(10))
         }
-        show(root)
     }
 
     //display photo selection, analysis feedback and saved predictions

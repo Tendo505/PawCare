@@ -21,6 +21,28 @@ class PawCareLogicTest
 {
     private val today = LocalDate.of(2026, 8, 31)
 
+    //check shared date parsing keeps each form's rules
+    @Test
+    fun sharedDateParsingPreservesFormRules()
+    {
+        assertTrue(PetInputValidator.validate("Toby", "", "", today).isValid)
+        assertEquals(
+            "Use YYYY-MM-DD for the birth date.",
+            PetInputValidator.validate("Toby", "not-a-date", "", today).birthDateError
+        )
+        assertTrue(
+            HealthInputValidator.validateVaccination("Vaccine", "", "2026-09-01", today).isValid
+        )
+        assertEquals(
+            "Select the clinic visit date.",
+            HealthInputValidator.validateMedicalRecord("", "Checkup", today).visitDateError
+        )
+        assertEquals(
+            "Use a valid date in YYYY-MM-DD format.",
+            AppointmentInputValidator.validate("not-a-date", "09:30", "Checkup", "Scheduled", today).dateError
+        )
+    }
+
     //1.account validation
 
     //check required account details
