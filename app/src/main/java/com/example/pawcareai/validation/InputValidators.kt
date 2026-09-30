@@ -16,7 +16,6 @@ data class AuthValidationResult(
         get() = nameError == null && emailError == null && passwordError == null
 }
 
-
 object AuthInputValidator
 {
     private const val MIN_PASSWORD_LENGTH = 8
@@ -100,7 +99,6 @@ data class PetValidationResult(
         get() = nameError ?: birthDateError ?: weightError
 }
 
-
 object PetInputValidator
 {
     //validate the pet details before creating or updating a profile
@@ -180,7 +178,6 @@ data class MedicalRecordValidationResult(
     val firstError: String?
         get() = visitDateError ?: diagnosisError
 }
-
 
 object HealthInputValidator
 {
@@ -268,7 +265,6 @@ data class AppointmentValidationResult(
     }
 }
 
-
 object AppointmentInputValidator
 {
     //validate the appointment date, time, and reason before saving
@@ -316,7 +312,6 @@ object AppointmentInputValidator
             reasonError = reasonError
         )
     }
-
 
     //return null for an invalid time
     private fun parseTime(value: String): LocalTime?
