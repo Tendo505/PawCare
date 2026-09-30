@@ -1178,7 +1178,7 @@ class DashboardActivity : AppCompatActivity()
     //create a compact outlined action button
     private fun smallButton(text: String, click: () -> Unit): MaterialButton
     {
-        val button = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle)
+        val button = MaterialButton(this, null, R.attr.materialButtonOutlinedStyle)
         button.text = text
         button.textSize = 12f
         button.cornerRadius = dp(12)
