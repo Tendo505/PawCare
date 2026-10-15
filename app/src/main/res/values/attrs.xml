@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Expose the existing Material theme attribute through PawCare's R class. -->
+    <attr name="materialButtonOutlinedStyle" format="reference" />
+</resources>

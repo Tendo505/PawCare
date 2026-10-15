@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--screen structure; DashboardActivity supplies account data and button actions-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="20dp"
+    android:paddingTop="18dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="32dp"
+    tools:context=".DashboardActivity">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/petsTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Pet profiles"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:textColor="@color/paw_text"
+                android:lineSpacingMultiplier="1.1" />
+            <TextView
+                android:id="@+id/petsSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Keep identity and care details together."
+                android:textSize="14sp"
+                android:textStyle="normal"
+                android:textColor="@color/paw_muted"
+                android:lineSpacingMultiplier="1.1"
+                android:layout_marginTop="3dp" />
+        </LinearLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/petsAdd"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="42dp"
+            android:text="Add pet"
+            app:cornerRadius="12dp"
+            android:textSize="12sp"
+            android:minHeight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/petsList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+</LinearLayout>

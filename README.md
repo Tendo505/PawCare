@@ -4,8 +4,8 @@ PawCare AI is an Android pet-health manager backed by a Laravel REST API, Postgr
 
 ## What is included
 
-- Android (Kotlin + XML + Material 3): polished sign-in/register screens, a demo account, dashboard, pet CRUD, vaccination CRUD, appointment CRUD, medical record CRUD, validation, search-ready data model, and AI photo upload.
-- Offline presentation mode: the Android app persists data with `SharedPreferences`, so the core demo does not fail when Wi-Fi or Docker is unavailable.
+- Android (Kotlin + XML + Material 3): polished sign-in/register screens, dashboard, pet CRUD, vaccination CRUD, appointment CRUD, medical record CRUD, validation, search-ready data model, and AI photo upload.
+- PostgreSQL-only records: Android sends account and pet-care CRUD requests to Laravel; only the bearer token is kept locally for session restoration.
 - Laravel 12 REST API: Sanctum tokens, per-owner authorization, validated resource endpoints, dashboard aggregation, AI proxy/storage, seed data, and feature tests.
 - PostgreSQL schema: all 11 tables requested by the project brief, with foreign keys, indexes, JSONB prediction output, and cascade behavior.
 - FastAPI AI service: validated image upload, lazy TensorFlow inference, top-three results, clear readiness checks, and MobileNetV2 transfer-learning script for the Oxford-IIIT Pet dataset.
@@ -14,7 +14,7 @@ PawCare AI is an Android pet-health manager backed by a Laravel REST API, Postgr
 ## Repository layout
 
 ```text
-PawCareAI/
+PawCare/
 ├── app/                 Android application
 ├── backend/             Laravel 12 REST API
 ├── ai-service/          FastAPI inference and TensorFlow training
@@ -27,7 +27,7 @@ PawCareAI/
 1. Open this folder in Android Studio Koala or newer.
 2. Select the `app` run configuration and an Android 8.0+ emulator/device.
 3. Run the app.
-4. Tap **Explore with demo account**, or use `demo@pawcare.my` / `PawCare123`.
+4. Register an account, then sign in with the credentials you created.
 
 The Android emulator reaches host services through `10.0.2.2`; the development URLs are declared in `app/build.gradle.kts`.
 
@@ -50,11 +50,12 @@ docker compose up --build
 
 - Laravel API: `http://localhost:8000/api`
 - Laravel health check: `http://localhost:8000/up`
+- Full PawCare integration check: `http://localhost:8000/api/health`
 - FastAPI docs: `http://localhost:8001/docs`
 - FastAPI readiness: `http://localhost:8001/health`
 - PostgreSQL: `localhost:5432` (`pawcare` / `pawcare_secret`)
 
-The container seeds the same demo user and sample records used by the Android presentation mode.
+The database seeder adds only reusable breed and vaccination reference rows; owners create their own accounts and records.
 
 ## Train the breed classifier
 
@@ -86,7 +87,7 @@ php artisan test
 php artisan serve
 ```
 
-Use [docs/api.http](docs/api.http) in an HTTP client, or import the calls into Postman. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the ERD and [docs/UAT.md](docs/UAT.md) for acceptance tests.
+Use [docs/api.http](docs/api.http) in an HTTP client, or import the calls into Postman. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture and database design, [docs/TECHNICAL_GUIDE.md](docs/TECHNICAL_GUIDE.md) for setup and maintenance, [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for owner instructions, [docs/SPRINT_8_DOCUMENTATION_UAT_AND_DEMO.md](docs/SPRINT_8_DOCUMENTATION_UAT_AND_DEMO.md) for the 28 September work, and [docs/UAT.md](docs/UAT.md) for the editable acceptance-test record.
 
 ## Safety and scope
 

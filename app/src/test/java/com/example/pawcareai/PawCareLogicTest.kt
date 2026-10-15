@@ -10,6 +10,10 @@ import com.example.pawcareai.validation.AppointmentInputValidator
 import com.example.pawcareai.validation.AuthInputValidator
 import com.example.pawcareai.validation.HealthInputValidator
 import com.example.pawcareai.validation.PetInputValidator
+import com.example.pawcareai.network.NetworkModule
+import com.example.pawcareai.network.PetRequest
+import com.google.gson.JsonParser
+import okio.Buffer
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -20,6 +24,44 @@ import org.junit.Test
 class PawCareLogicTest
 {
     private val today = LocalDate.of(2026, 8, 31)
+
+    //keep the mobile timeout longer than laravel's default ai processing timeout
+    @Test
+    fun aiRequestHasTimeToComplete()
+    {
+        val client = NetworkModule.createBackendClient()
+        assertEquals(60_000, client.readTimeoutMillis)
+        assertEquals(30_000, client.writeTimeoutMillis)
+    }
+
+    //send explicit nulls so clearing optional fields also clears the database value
+    @Test
+    fun petUpdateIncludesClearedOptionalFields()
+    {
+        val request = NetworkModule.backend.updatePet(
+            3, PetRequest(name = "Milo", species = "Cat", sex = "Male")
+        ).request()
+        val body = Buffer()
+        request.body!!.writeTo(body)
+        val json = JsonParser.parseString(body.readUtf8()).asJsonObject
+
+        listOf("breed", "birth_date", "weight_kg", "microchip_number", "notes").forEach { field ->
+            assertTrue("Missing cleared field: $field", json.has(field))
+            assertTrue("Expected null for $field", json[field].isJsonNull)
+        }
+        assertEquals("Milo", json["name"].asString)
+        assertEquals("PUT", request.method)
+    }
+
+    //reject non-finite values before gson can throw while preparing a request
+    @Test
+    fun petRejectsNonFiniteAndOutOfRangeWeights()
+    {
+        listOf("NaN", "Infinity", "1e309", "301").forEach { weight ->
+            assertFalse(weight, PetInputValidator.validate("Toby", "", weight, today).isValid)
+        }
+        assertTrue(PetInputValidator.validate("Toby", "", "300", today).isValid)
+    }
 
     //check shared date parsing keeps each form's rules
     @Test

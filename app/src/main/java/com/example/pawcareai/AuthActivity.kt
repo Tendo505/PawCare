@@ -18,8 +18,20 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 
-class MainActivity : AppCompatActivity(), View.OnClickListener
+//shared validation and api handling for the two account screens
+abstract class AuthActivity : AppCompatActivity(), View.OnClickListener
 {
+    protected abstract val layoutResource: Int
+    protected abstract val registerMode: Boolean
+
+    private data class FormDraft(val name: String, val email: String, val password: String)
+
+    companion object
+    {
+        //pass the form once in memory, never through intents or stored preferences
+        private var pendingDraft: FormDraft? = null
+    }
+
     //account data
     private lateinit var repository: AppRepository
 
@@ -34,21 +46,25 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
     //form buttons and labels
     private lateinit var submitButton: MaterialButton
     private lateinit var toggleText: TextView
-    private lateinit var formTitle: TextView
-    private var registerMode: Boolean = false
 
     //1.screen setup
 
-    //create the login screen
+    //create the selected account screen
     override fun onCreate(savedInstanceState: Bundle?)
     {
         super.onCreate(savedInstanceState)
         repository = AppRepository(this)
         enableEdgeToEdge()
-        setContentView(R.layout.activity_main)
+        setContentView(layoutResource)
 
         setScreenInsets()
         initializeForm()
+        pendingDraft?.let { draft ->
+            nameInput.setText(draft.name)
+            emailInput.setText(draft.email)
+            passwordInput.setText(draft.password)
+        }
+        pendingDraft = null
         setFormListeners()
         restoreAccount()
     }
@@ -74,7 +90,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
         passwordInput = findViewById(R.id.passwordInput)
         submitButton = findViewById(R.id.loginButton)
         toggleText = findViewById(R.id.signUpText)
-        formTitle = findViewById(R.id.formTitle)
     }
 
     //register button actions
@@ -119,6 +134,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
 
         setFormBusy(true)
         repository.restoreSession { result ->
+            if (isFinishing || isDestroyed) return@restoreSession
             setFormBusy(false)
             result.onSuccess { openDashboard() }
         }
@@ -129,10 +145,13 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
     {
         setFormBusy(true)
         val onResult: (Result<UserAccount>) -> Unit = { result ->
-            setFormBusy(false)
-            result
-                .onSuccess { openDashboard() }
-                .onFailure(::displayAuthenticationError)
+            if (!isFinishing && !isDestroyed)
+            {
+                setFormBusy(false)
+                result
+                    .onSuccess { openDashboard() }
+                    .onFailure(::displayAuthenticationError)
+            }
         }
 
         if (registerMode)
@@ -148,8 +167,16 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
     //switch between login and registration
     private fun changeFormMode()
     {
-        registerMode = !registerMode
-        renderMode()
+        val screen = if (registerMode) LoginActivity::class.java else RegisterActivity::class.java
+        val screenIntent = Intent(this, screen)
+        //keep entered details when switching, just like the original form toggle
+        pendingDraft = FormDraft(
+            nameInput.text?.toString().orEmpty(),
+            emailInput.text?.toString().orEmpty(),
+            passwordInput.text?.toString().orEmpty()
+        )
+        startActivity(screenIntent)
+        finish()
     }
 
     //4.output
@@ -176,19 +203,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener
             ?.takeIf { it.isNotBlank() }
             ?: "Unable to sign in. Check the details and make sure Laravel is running."
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-    }
-
-    //update the form labels for the selected mode
-    private fun renderMode()
-    {
-        nameLayout.error = null
-        emailLayout.error = null
-        passwordLayout.error = null
-        nameLayout.visibility = if (registerMode) View.VISIBLE else View.GONE
-        formTitle.text = if (registerMode) "Create your account" else "Welcome back"
-        submitButton.text = if (registerMode) getString(R.string.register) else getString(R.string.login)
-        toggleText.text = if (registerMode) "Already have an account? Sign in"
-            else getString(R.string.don_t_have_an_account_sign_up)
     }
 
     //prevent another submission while waiting for the server

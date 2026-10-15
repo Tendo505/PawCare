@@ -3,8 +3,11 @@ package com.example.pawcareai
 import android.app.DatePickerDialog
 import android.content.Intent
 import android.graphics.Typeface
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -22,6 +25,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.example.pawcareai.data.ApiRequestException
 import com.example.pawcareai.data.AppRepository
 import com.example.pawcareai.data.Appointment
 import com.example.pawcareai.data.AppointmentReminderCalculator
@@ -37,6 +41,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -413,15 +418,26 @@ class DashboardActivity : AppCompatActivity()
     private fun restoreAccountRecords()
     {
         repository.restoreSession { sessionResult ->
+            if (isFinishing || isDestroyed) return@restoreSession
             sessionResult.onSuccess {
                 repository.refreshData { dataResult ->
+                    if (isFinishing || isDestroyed) return@refreshData
                     dataResult.onSuccess {
-                        renderHomeScreen()
+                        renderSelectedScreen(bottomNavigation.selectedItemId)
                         refreshSystemHealth()
                     }
                         .onFailure { showDatabaseError() }
                 }
-            }.onFailure { returnToLogin() }
+            }.onFailure { error ->
+                if (error is ApiRequestException && error.statusCode == 401)
+                {
+                    returnToLogin()
+                }
+                else
+                {
+                    showDatabaseError()
+                }
+            }
         }
     }
 
@@ -430,7 +446,19 @@ class DashboardActivity : AppCompatActivity()
     {
         val uri = selectedImageUri ?: return
         val imageReadResult = runCatching {
-            contentResolver.openInputStream(uri)?.use { imageStream -> imageStream.readBytes() }
+            contentResolver.openInputStream(uri)?.use { imageStream ->
+                //read at most the upload limit plus one byte
+                val limit = 10 * 1024 * 1024
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (output.size() <= limit)
+                {
+                    val count = imageStream.read(buffer, 0, minOf(buffer.size, limit + 1 - output.size()))
+                    if (count == -1) break
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            }
         }
         val bytes: ByteArray? = imageReadResult.getOrNull()
         if (bytes == null)
@@ -467,7 +495,10 @@ class DashboardActivity : AppCompatActivity()
                     aiError = error.localizedMessage
                         ?: "The image could not be analyzed. Check Laravel and FastAPI, then try again."
                 }
-            renderAiScreen()
+            if (!isFinishing && !isDestroyed && bottomNavigation.selectedItemId == R.id.nav_ai)
+            {
+                renderAiScreen()
+            }
         }
     }
 
@@ -475,7 +506,7 @@ class DashboardActivity : AppCompatActivity()
     private fun refreshSystemHealth()
     {
         repository.checkSystemHealth {
-            if (bottomNavigation.selectedItemId == R.id.nav_home)
+            if (!isFinishing && !isDestroyed && bottomNavigation.selectedItemId == R.id.nav_home)
             {
                 renderHomeScreen()
             }
@@ -549,37 +580,17 @@ class DashboardActivity : AppCompatActivity()
     private fun renderHomeScreen()
     {
         toolbar.title = "PawCare"
-        val root: LinearLayout = screen()
         val user = repository.currentUser ?: return
-        root.addView(label("Hello, ${user.name.substringBefore(' ')} 👋", 28, true, R.color.paw_text))
-        root.addView(label("Here is your pet care overview.", 15, false, R.color.paw_muted).withTopMargin(4))
-
-        val heroBody: LinearLayout = vertical(18)
-        heroBody.addView(label("Healthy routines, happier paws", 21, true, R.color.white))
-        heroBody.addView(label("Track visits, vaccines, and reminders in one private place.", 14, false, R.color.white).withTopMargin(8))
-
-        val heroCard: MaterialCardView = card(R.color.paw_primary)
-        heroCard.addView(heroBody)
-        root.addView(heroCard.withTopMargin(22))
-
-        root.addView(sectionTitle("System connection").withTopMargin(24))
-        root.addView(systemHealthCard().withTopMargin(10))
+        val root = screen(R.layout.screen_home)
+        root.findViewById<TextView>(R.id.homeGreeting).text = "Hello, ${user.name.substringBefore(' ')} 👋"
+        bindSystemHealth(root)
 
         val stats = repository.stats()
-        root.addView(sectionTitle("At a glance").withTopMargin(24))
-        val petStatsRow = LinearLayout(this)
-        petStatsRow.orientation = LinearLayout.HORIZONTAL
-        petStatsRow.addView(statCard("🐾", stats.petCount.toString(), "Pets"), weighted())
-        petStatsRow.addView(statCard("💉", stats.upcomingVaccinations.toString(), "Vaccines due"), weighted(left = 10))
-        root.addView(petStatsRow.withTopMargin(10))
-
-        val healthStatsRow = LinearLayout(this)
-        healthStatsRow.orientation = LinearLayout.HORIZONTAL
-        healthStatsRow.addView(statCard("📅", stats.scheduledAppointments.toString(), "Appointments"), weighted())
-        healthStatsRow.addView(statCard("🩺", stats.medicalRecordCount.toString(), "Health records"), weighted(left = 10))
-        root.addView(healthStatsRow.withTopMargin(10))
-
-        root.addView(sectionTitle("Coming up").withTopMargin(24))
+        bindStat(root.findViewById(R.id.petStat), "🐾", stats.petCount, "Pets")
+        bindStat(root.findViewById(R.id.vaccineStat), "💉", stats.upcomingVaccinations, "Vaccines due")
+        bindStat(root.findViewById(R.id.appointmentStat), "📅", stats.scheduledAppointments, "Appointments")
+        bindStat(root.findViewById(R.id.medicalStat), "🩺", stats.medicalRecordCount, "Health records")
+        val remindersContainer = root.findViewById<LinearLayout>(R.id.homeReminders)
         val reminders = mutableListOf<Triple<String, String, String>>()
         val upcomingAppointments = AppointmentReminderCalculator.upcoming(repository.appointments(), limit = 3)
         upcomingAppointments.forEach { reminder ->
@@ -605,45 +616,47 @@ class DashboardActivity : AppCompatActivity()
         }
         if (reminders.isEmpty())
         {
-            root.addView(emptyCard("No reminders yet", "Add an appointment or vaccination record to see it here.").withTopMargin(10))
+            remindersContainer.addView(emptyCard("No reminders yet", "Add an appointment or vaccination record to see it here.").withTopMargin(10))
         }
         else
         {
             reminders.forEach { (title, date, detail) ->
-                root.addView(infoCard(title, date, detail).withTopMargin(10))
+                remindersContainer.addView(infoCard(title, date, detail).withTopMargin(10))
             }
         }
 
-        root.addView(sectionTitle("Quick actions").withTopMargin(24))
-        val quickActionsRow = LinearLayout(this)
-        quickActionsRow.orientation = LinearLayout.HORIZONTAL
-        quickActionsRow.addView(actionButton("Add pet") { showPetDialog() }, weighted())
-        quickActionsRow.addView(actionButton("Book visit") { showAppointmentDialog() }, weighted(left = 10))
-        root.addView(quickActionsRow.withTopMargin(10))
 
-        val recognizeButton: MaterialButton = actionButton("Recognize a breed") {
-            findViewById<BottomNavigationView>(R.id.bottomNavigation).selectedItemId = R.id.nav_ai
+        root.findViewById<MaterialButton>(R.id.homeAddPet).setOnClickListener { showPetDialog() }
+        root.findViewById<MaterialButton>(R.id.homeBookVisit).setOnClickListener { showAppointmentDialog() }
+        root.findViewById<MaterialButton>(R.id.homeRecognize).setOnClickListener {
+            bottomNavigation.selectedItemId = R.id.nav_ai
         }
-        root.addView(recognizeButton.withTopMargin(10))
         show(root)
+    }
+
+    //fill one reusable dashboard total
+    private fun bindStat(card: View, icon: String, value: Int, caption: String)
+    {
+        card.findViewById<TextView>(R.id.statIcon).text = icon
+        card.findViewById<TextView>(R.id.statValue).text = value.toString()
+        card.findViewById<TextView>(R.id.statCaption).text = caption
     }
 
     //display all pet profiles and the add-pet action
     private fun renderPetsScreen()
     {
         toolbar.title = "My pets"
-        val root = screen()
-        root.addView(header("Pet profiles", "Keep identity and care details together.", "Add pet") { showPetDialog() })
+        val root = screen(R.layout.screen_pets)
+        root.findViewById<MaterialButton>(R.id.petsAdd).setOnClickListener { showPetDialog() }
+        val list = root.findViewById<LinearLayout>(R.id.petsList)
         val pets = repository.pets()
         if (pets.isEmpty())
         {
-            root.addView(emptyCard("No pets yet", "Create your first pet profile to start tracking their health.").withTopMargin(18))
+            list.addView(emptyCard("No pets yet", "Create your first pet profile to start tracking their health.").withTopMargin(18))
         }
         else
         {
-            pets.forEach { pet ->
-                root.addView(petCard(pet).withTopMargin(14))
-            }
+            pets.forEach { pet -> list.addView(petCard(pet).withTopMargin(14)) }
         }
         show(root)
     }
@@ -652,21 +665,17 @@ class DashboardActivity : AppCompatActivity()
     private fun renderHealthScreen()
     {
         toolbar.title = "Health records"
-        val root = screen()
-        root.addView(label("Health timeline", 28, true, R.color.paw_text))
-        root.addView(label("Vaccinations, visits, and appointments for every pet.", 15, false, R.color.paw_muted).withTopMargin(4))
+        val root = screen(R.layout.screen_health)
+        root.findViewById<MaterialButton>(R.id.healthAddVaccine).setOnClickListener { showVaccinationDialog() }
+        root.findViewById<MaterialButton>(R.id.healthBookVisit).setOnClickListener { showAppointmentDialog() }
+        root.findViewById<MaterialButton>(R.id.healthAddRecord).setOnClickListener { showMedicalRecordDialog() }
 
-        root.addView(moduleHeader("💉 Vaccinations", "Add vaccine") { showVaccinationDialog() }.withTopMargin(24))
-        showRecords(root, repository.vaccinations(), "No vaccination records",
-            "Add past doses and future due dates.", ::vaccinationCard)
-
-        root.addView(moduleHeader("📅 Appointments", "Book visit") { showAppointmentDialog() }.withTopMargin(28))
-        showRecords(root, repository.appointments(), "No appointments",
-            "Schedule a clinic visit and keep the details handy.", ::appointmentCard)
-
-        root.addView(moduleHeader("🩺 Medical records", "Add record") { showMedicalRecordDialog() }.withTopMargin(28))
-        showRecords(root, repository.medicalRecords(), "No medical history",
-            "Record diagnoses and treatments after a clinic visit.", ::medicalCard)
+        showRecords(root.findViewById(R.id.vaccinationList), repository.vaccinations(),
+            "No vaccination records", "Add past doses and future due dates.", ::vaccinationCard)
+        showRecords(root.findViewById(R.id.appointmentList), repository.appointments(),
+            "No appointments", "Schedule a clinic visit and keep the details handy.", ::appointmentCard)
+        showRecords(root.findViewById(R.id.medicalList), repository.medicalRecords(),
+            "No medical history", "Record diagnoses and treatments after a clinic visit.", ::medicalCard)
         show(root)
     }
 
@@ -692,10 +701,7 @@ class DashboardActivity : AppCompatActivity()
     private fun renderAiScreen()
     {
         toolbar.title = "AI breed recognition"
-        val root = screen()
-        root.addView(label("Recognize a breed", 28, true, R.color.paw_text))
-        root.addView(label("Choose a clear, well-lit photo with one cat or dog.", 15, false, R.color.paw_muted).withTopMargin(4))
-
+        val root = screen(R.layout.screen_ai)
         val pets = repository.pets()
         val currentPetId = selectedAiPetId
         if (currentPetId != null && repository.pet(currentPetId) == null)
@@ -707,78 +713,57 @@ class DashboardActivity : AppCompatActivity()
             selectedAiPetId = pets.first().id
         }
         val linkedPet = selectedAiPetId?.let(repository::pet)
-        val linkedPetTitle: String = linkedPet?.let { pet -> "Linked pet: ${pet.name}" }
-            ?: "Link to a pet (optional)"
-        val linkedPetButton: MaterialButton = actionButton(linkedPetTitle) { choosePredictionPet() }
-        root.addView(linkedPetButton.withTopMargin(18))
-        root.addView(imagePreviewCard().withTopMargin(22))
+        val linkedPetButton = root.findViewById<MaterialButton>(R.id.aiLinkedPet)
+        linkedPetButton.text = linkedPet?.let { pet -> "Linked pet: ${pet.name}" } ?: "Link to a pet (optional)"
+        linkedPetButton.isEnabled = !aiLoading
+        linkedPetButton.setOnClickListener { choosePredictionPet() }
+        bindImagePreview(root)
 
-        val choosePhotoTitle: String = if (selectedImageUri == null) "Choose photo" else "Choose another photo"
-        val choosePhotoButton: MaterialButton = actionButton(choosePhotoTitle) { imagePicker.launch("image/*") }
-        root.addView(choosePhotoButton.withTopMargin(14))
-
-        val analyzeButton: MaterialButton = actionButton("Analyze breed") { analyzeImage() }
+        val choosePhotoButton = root.findViewById<MaterialButton>(R.id.aiChoosePhoto)
+        choosePhotoButton.text = if (selectedImageUri == null) "Choose photo" else "Choose another photo"
+        choosePhotoButton.isEnabled = !aiLoading
+        choosePhotoButton.setOnClickListener { imagePicker.launch("image/*") }
+        val analyzeButton = root.findViewById<MaterialButton>(R.id.aiAnalyze)
         analyzeButton.isEnabled = selectedImageUri != null && !aiLoading
-        root.addView(analyzeButton.withTopMargin(10))
+        analyzeButton.setOnClickListener { analyzeImage() }
+        root.findViewById<View>(R.id.aiProgress).visibility = if (aiLoading) View.VISIBLE else View.GONE
 
-        if (aiLoading)
-        {
-            val progressRow = LinearLayout(this)
-            progressRow.gravity = Gravity.CENTER_VERTICAL
-            progressRow.addView(ProgressBar(this), LinearLayout.LayoutParams(dp(28), dp(28)))
-            progressRow.addView(label("Analyzing image…", 15, true, R.color.paw_text).withLeftMargin(12))
-            root.addView(progressRow.withTopMargin(20))
-        }
-        aiResult?.let { result ->
-            root.addView(predictionResultCard(result).withTopMargin(18))
-        }
+        val feedback = root.findViewById<LinearLayout>(R.id.aiFeedback)
+        aiResult?.let { result -> feedback.addView(predictionResultCard(result).withTopMargin(18)) }
         aiError?.let { message ->
-            root.addView(emptyCard("Could not analyze the photo", message).withTopMargin(18))
+            feedback.addView(emptyCard("Could not analyze the photo", message).withTopMargin(18))
         }
-
-        root.addView(label("AI results are guidance only. Breed predictions can be wrong, especially for mixed breeds. They do not provide a medical diagnosis.", 12, false, R.color.paw_muted).withTopMargin(18))
-
-        root.addView(sectionTitle("Saved prediction history").withTopMargin(26))
+        val historyList = root.findViewById<LinearLayout>(R.id.aiHistory)
         val history = repository.predictions()
         if (history.isEmpty())
         {
-            root.addView(emptyCard("No saved predictions", "A successful result will be stored in PostgreSQL and listed here.").withTopMargin(10))
+            historyList.addView(emptyCard("No saved predictions", "A successful result will be stored in PostgreSQL and listed here.").withTopMargin(10))
         }
         else
         {
-            history.take(5).forEach { prediction ->
-                root.addView(predictionCard(prediction).withTopMargin(10))
-            }
+            history.take(5).forEach { prediction -> historyList.addView(predictionCard(prediction).withTopMargin(10)) }
         }
         show(root)
     }
 
-    //create the laravel, postgresql and ai connection card
-    private fun systemHealthCard(): MaterialCardView
+    //fill the connection card from the latest service check
+    private fun bindSystemHealth(root: View)
     {
         val health = repository.systemHealth()
-        val title: String = when (health?.overall)
+        root.findViewById<TextView>(R.id.connectionTitle).text = when (health?.overall)
         {
             "ok" -> "All services connected"
             "degraded" -> "Core records connected; one service needs attention"
             "unavailable" -> "Laravel connection unavailable"
             else -> "Checking system services…"
         }
-
-        val connectionBody: LinearLayout = vertical(18)
-        connectionBody.addView(label(title, 16, true, R.color.paw_text))
-        connectionBody.addView(label("Laravel API: ${serviceLabel(health?.laravel)}", 13, false, R.color.paw_muted).withTopMargin(8))
-        connectionBody.addView(label("PostgreSQL: ${serviceLabel(health?.database)}", 13, false, R.color.paw_muted).withTopMargin(4))
-        connectionBody.addView(label("AI service: ${serviceLabel(health?.ai)}", 13, false, R.color.paw_muted).withTopMargin(4))
-        if (!health?.aiModelVersion.isNullOrBlank())
-        {
-            connectionBody.addView(label("Model: ${health?.aiModelVersion}", 12, false, R.color.paw_muted).withTopMargin(4))
-        }
-        connectionBody.addView(smallButton("Check again") { refreshSystemHealth() }.withTopMargin(12))
-
-        val connectionCard: MaterialCardView = card(R.color.white)
-        connectionCard.addView(connectionBody)
-        return connectionCard
+        root.findViewById<TextView>(R.id.connectionLaravel).text = "Laravel API: ${serviceLabel(health?.laravel)}"
+        root.findViewById<TextView>(R.id.connectionDatabase).text = "PostgreSQL: ${serviceLabel(health?.database)}"
+        root.findViewById<TextView>(R.id.connectionAi).text = "AI service: ${serviceLabel(health?.ai)}"
+        val model = root.findViewById<TextView>(R.id.connectionModel)
+        model.visibility = if (health?.aiModelVersion.isNullOrBlank()) View.GONE else View.VISIBLE
+        model.text = "Model: ${health?.aiModelVersion}"
+        root.findViewById<MaterialButton>(R.id.connectionRetry).setOnClickListener { refreshSystemHealth() }
     }
 
     //display a readable name for each service status
@@ -794,34 +779,41 @@ class DashboardActivity : AppCompatActivity()
         }
     }
 
-    //create the selected photo preview or the empty photo placeholder
-    private fun imagePreviewCard(): MaterialCardView
+    //show the selected photo without decoding its full camera resolution
+    private fun bindImagePreview(root: View)
     {
-        val previewCard = MaterialCardView(this)
-        previewCard.radius = dp(22).toFloat()
-        previewCard.setCardBackgroundColor(color(R.color.paw_surface_variant))
-        previewCard.strokeColor = color(R.color.paw_primary)
-        previewCard.strokeWidth = dp(1)
-
-        val imageUri: Uri? = selectedImageUri
-        if (imageUri == null)
+        val uri = selectedImageUri ?: return
+        val photo = root.findViewById<ImageView>(R.id.aiPhoto)
+        val bitmap = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            {
+                //keep camera orientation while limiting preview memory
+                val source = ImageDecoder.createSource(contentResolver, uri)
+                ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                    val largestSide = maxOf(info.size.width, info.size.height)
+                    decoder.setTargetSampleSize(maxOf(1, (largestSide + 2047) / 2048))
+                }
+            }
+            else
+            {
+                val options = BitmapFactory.Options()
+                options.inJustDecodeBounds = true
+                contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+                options.inSampleSize = 1
+                while (maxOf(options.outWidth, options.outHeight) / options.inSampleSize > 2048)
+                {
+                    options.inSampleSize *= 2
+                }
+                options.inJustDecodeBounds = false
+                contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+            }
+        }.getOrNull()
+        if (bitmap != null)
         {
-            val placeholder: LinearLayout = vertical(26)
-            placeholder.gravity = Gravity.CENTER
-            placeholder.addView(label("📷", 46, false, R.color.paw_text).centered())
-            placeholder.addView(label("No photo selected", 18, true, R.color.paw_text).centered().withTopMargin(8))
-            placeholder.addView(label("JPG, PNG, or WebP · maximum 10 MB", 13, false, R.color.paw_muted).centered().withTopMargin(4))
-            previewCard.addView(placeholder)
+            photo.setImageBitmap(bitmap)
+            photo.visibility = View.VISIBLE
+            root.findViewById<View>(R.id.aiPlaceholder).visibility = View.GONE
         }
-        else
-        {
-            val photoView = ImageView(this)
-            photoView.setImageURI(imageUri)
-            photoView.scaleType = ImageView.ScaleType.CENTER_CROP
-            photoView.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(260))
-            previewCard.addView(photoView)
-        }
-        return previewCard
     }
 
     //create the latest breed match and alternative predictions
@@ -883,43 +875,26 @@ class DashboardActivity : AppCompatActivity()
         return historyCard
     }
 
-    //create a pet profile card with edit and delete actions
+    //fill a pet profile card and attach edit and delete actions
     private fun petCard(pet: Pet): MaterialCardView
     {
-        val petIdentity: LinearLayout = vertical()
-        petIdentity.addView(label(pet.name, 21, true, R.color.paw_text))
-        petIdentity.addView(label("${pet.breed.ifBlank { "Unknown breed" }} · ${pet.species}", 14, false, R.color.paw_muted).withTopMargin(2))
-
-        val identityRow = LinearLayout(this)
-        identityRow.gravity = Gravity.CENTER_VERTICAL
-        val petIcon: String = if (pet.species == "Cat") "🐈" else "🐕"
-        val iconSize = LinearLayout.LayoutParams(dp(52), ViewGroup.LayoutParams.WRAP_CONTENT)
-        identityRow.addView(label(petIcon, 34, false, R.color.paw_text), iconSize)
-        identityRow.addView(petIdentity, weighted())
-
-        val profileBody: LinearLayout = vertical(18)
-        profileBody.addView(identityRow)
-        profileBody.addView(label("${pet.sex}  •  ${pet.weightKg.clean()} kg  •  Born ${prettyDate(pet.birthDate)}", 14, false, R.color.paw_muted).withTopMargin(13))
-        if (pet.microchipNumber.isNotBlank())
-        {
-            profileBody.addView(label("Microchip: ${pet.microchipNumber}", 13, false, R.color.paw_muted).withTopMargin(5))
-        }
-
-        val profileActions: LinearLayout = actionRow(
-            "Edit" to { showPetDialog(pet) },
-            "Delete" to {
-                confirmDelete("Delete ${pet.name}?", "All linked health records will also be removed.") {
-                    repository.deletePet(pet.id) { result ->
-                        handleDatabaseResult(result) { renderPetsScreen() }
-                    }
+        val card = layoutInflater.inflate(R.layout.item_pet_card, contentContainer, false) as MaterialCardView
+        card.findViewById<TextView>(R.id.petName).text = pet.name
+        card.findViewById<TextView>(R.id.petBreed).text = "${pet.breed.ifBlank { "Unknown breed" }} · ${pet.species}"
+        card.findViewById<TextView>(R.id.petIcon).text = if (pet.species == "Cat") "🐈" else "🐕"
+        card.findViewById<TextView>(R.id.petDetails).text = "${pet.sex}  •  ${pet.weightKg.clean()} kg  •  Born ${prettyDate(pet.birthDate)}"
+        val microchip = card.findViewById<TextView>(R.id.petMicrochip)
+        microchip.visibility = if (pet.microchipNumber.isBlank()) View.GONE else View.VISIBLE
+        microchip.text = "Microchip: ${pet.microchipNumber}"
+        card.findViewById<MaterialButton>(R.id.petEdit).setOnClickListener { showPetDialog(pet) }
+        card.findViewById<MaterialButton>(R.id.petDelete).setOnClickListener {
+            confirmDelete("Delete ${pet.name}?", "All linked health records will also be removed.") {
+                repository.deletePet(pet.id) { result ->
+                    handleDatabaseResult(result) { renderPetsScreen() }
                 }
             }
-        )
-        profileBody.addView(profileActions.withTopMargin(12))
-
-        val profileCard: MaterialCardView = card(R.color.white)
-        profileCard.addView(profileBody)
-        return profileCard
+        }
+        return card
     }
 
     //create a vaccination card with its saved care details
@@ -994,7 +969,7 @@ class DashboardActivity : AppCompatActivity()
         )
     }
 
-    //create the common health card layout and record actions
+    //fill the common health card and attach record actions
     private fun recordCard(
         title: String,
         subtitle: String,
@@ -1003,23 +978,24 @@ class DashboardActivity : AppCompatActivity()
         onDelete: () -> Unit
     ): MaterialCardView
     {
-        val recordBody: LinearLayout = vertical(16)
-        recordBody.addView(label(title, 17, true, R.color.paw_text))
-        recordBody.addView(label(subtitle, 14, false, R.color.paw_primary).withTopMargin(4))
-        if (detail.isNotBlank())
-        {
-            recordBody.addView(label(detail, 13, false, R.color.paw_muted).withTopMargin(5))
-        }
-        recordBody.addView(actionRow("Edit" to onEdit, "Delete" to onDelete).withTopMargin(8))
-
-        val healthCard: MaterialCardView = card(R.color.white)
-        healthCard.addView(recordBody)
-        return healthCard
+        val card = layoutInflater.inflate(R.layout.item_health_record, contentContainer, false) as MaterialCardView
+        card.findViewById<TextView>(R.id.recordTitle).text = title
+        card.findViewById<TextView>(R.id.recordSubtitle).text = subtitle
+        val detailView = card.findViewById<TextView>(R.id.recordDetail)
+        detailView.text = detail
+        detailView.visibility = if (detail.isBlank()) View.GONE else View.VISIBLE
+        card.findViewById<MaterialButton>(R.id.recordEdit).setOnClickListener { onEdit() }
+        card.findViewById<MaterialButton>(R.id.recordDelete).setOnClickListener { onDelete() }
+        return card
     }
 
     //create the content area with the existing screen spacing
-    private fun screen(): LinearLayout
+    private fun screen(layout: Int = 0): LinearLayout
     {
+        if (layout != 0)
+        {
+            return layoutInflater.inflate(layout, contentContainer, false) as LinearLayout
+        }
         val root = vertical(20)
         root.setPadding(dp(20), dp(18), dp(20), dp(32))
         return root
@@ -1053,10 +1029,7 @@ class DashboardActivity : AppCompatActivity()
         root.addView(emptyCard("Could not load your records", "Make sure PostgreSQL and the Laravel API are running, then try again."))
         root.addView(actionButton("Try again") {
             showLoading("Loading your PostgreSQL records…")
-            repository.refreshData { result ->
-                result.onSuccess { renderHomeScreen() }
-                    .onFailure { showDatabaseError() }
-            }
+            restoreAccountRecords()
         }.withTopMargin(12))
         show(root)
     }
@@ -1083,36 +1056,6 @@ class DashboardActivity : AppCompatActivity()
         return textLabel
     }
 
-    //create a section heading
-    private fun sectionTitle(text: String): TextView = label(text, 19, true, R.color.paw_text)
-
-    //create the page heading and its action button
-    private fun header(title: String, subtitle: String, action: String, onAction: () -> Unit): LinearLayout
-    {
-        val heading = vertical()
-        heading.addView(label(title, 28, true, R.color.paw_text))
-        heading.addView(label(subtitle, 14, false, R.color.paw_muted).withTopMargin(3))
-
-        val headingRow = LinearLayout(this)
-        headingRow.gravity = Gravity.CENTER_VERTICAL
-        headingRow.addView(heading, weighted())
-        headingRow.addView(smallButton(action, onAction))
-
-        val headerContainer = vertical()
-        headerContainer.addView(headingRow)
-        return headerContainer
-    }
-
-    //create a module heading and its action button
-    private fun moduleHeader(title: String, action: String, onAction: () -> Unit): LinearLayout
-    {
-        val headingRow = LinearLayout(this)
-        headingRow.gravity = Gravity.CENTER_VERTICAL
-        headingRow.addView(sectionTitle(title), weighted())
-        headingRow.addView(smallButton(action, onAction))
-        return headingRow
-    }
-
     //create a card with the existing colours and shape
     private fun card(background: Int): MaterialCardView
     {
@@ -1126,29 +1069,13 @@ class DashboardActivity : AppCompatActivity()
         return container
     }
 
-    //display one dashboard total
-    private fun statCard(icon: String, value: String, caption: String): MaterialCardView
-    {
-        val content = vertical(14)
-        content.addView(label(icon, 22, false, R.color.paw_text))
-        content.addView(label(value, 25, true, R.color.paw_text).withTopMargin(6))
-        content.addView(label(caption, 12, false, R.color.paw_muted).withTopMargin(2))
-
-        val container = card(R.color.white)
-        container.addView(content)
-        return container
-    }
-
-    //display a message when a section has no records
+    //fill the reusable empty or error message card
     private fun emptyCard(title: String, subtitle: String): MaterialCardView
     {
-        val content = vertical(18)
-        content.addView(label(title, 16, true, R.color.paw_text))
-        content.addView(label(subtitle, 13, false, R.color.paw_muted).withTopMargin(4))
-
-        val container = card(R.color.white)
-        container.addView(content)
-        return container
+        val card = layoutInflater.inflate(R.layout.item_message_card, contentContainer, false) as MaterialCardView
+        card.findViewById<TextView>(R.id.messageTitle).text = title
+        card.findViewById<TextView>(R.id.messageSubtitle).text = subtitle
+        return card
     }
 
     //display the summary of a saved record
@@ -1175,30 +1102,6 @@ class DashboardActivity : AppCompatActivity()
         return button
     }
 
-    //create a compact outlined action button
-    private fun smallButton(text: String, click: () -> Unit): MaterialButton
-    {
-        val button = MaterialButton(this, null, R.attr.materialButtonOutlinedStyle)
-        button.text = text
-        button.textSize = 12f
-        button.cornerRadius = dp(12)
-        button.minHeight = 0
-        button.insetTop = 0
-        button.insetBottom = 0
-        button.setOnClickListener { click() }
-        button.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(42))
-        return button
-    }
-
-    //group the actions for a record
-    private fun actionRow(vararg actions: Pair<String, () -> Unit>): LinearLayout
-    {
-        val buttonRow = LinearLayout(this)
-        buttonRow.gravity = Gravity.END
-        actions.forEach { (title, action) -> buttonRow.addView(smallButton(title, action).withLeftMargin(8)) }
-        return buttonRow
-    }
-
     //set the top spacing while retaining the view size
     private fun View.withTopMargin(value: Int): View
     {
@@ -1213,23 +1116,6 @@ class DashboardActivity : AppCompatActivity()
         layoutParams = marginLayout
         return this
     }
-
-    //set the left spacing for an action
-    private fun <T : View> T.withLeftMargin(value: Int): T
-    {
-        val marginLayout = layoutParams as? LinearLayout.LayoutParams
-            ?: LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        marginLayout.leftMargin = dp(value)
-        layoutParams = marginLayout
-        return this
-    }
-
-    //centre text inside its view
-    private fun TextView.centered(): TextView = apply { gravity = Gravity.CENTER }
-
-    //share the row width evenly
-    private fun weighted(left: Int = 0): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(left) }
 
     //resolve a colour resource
     private fun color(resource: Int): Int = ContextCompat.getColor(this, resource)
@@ -1283,21 +1169,27 @@ class DashboardActivity : AppCompatActivity()
     private fun setNavigationActions()
     {
         bottomNavigation.setOnItemSelectedListener { item ->
-            when (item.itemId)
-            {
-                R.id.nav_home -> renderHomeScreen()
-                R.id.nav_pets -> renderPetsScreen()
-                R.id.nav_health -> renderHealthScreen()
-                R.id.nav_ai -> renderAiScreen()
-            }
+            renderSelectedScreen(item.itemId)
             true
+        }
+    }
+
+    //keep asynchronous refreshes on the tab the user selected
+    private fun renderSelectedScreen(itemId: Int)
+    {
+        when (itemId)
+        {
+            R.id.nav_home -> renderHomeScreen()
+            R.id.nav_pets -> renderPetsScreen()
+            R.id.nav_health -> renderHealthScreen()
+            R.id.nav_ai -> renderAiScreen()
         }
     }
 
     //return to authentication after logout
     private fun returnToLogin()
     {
-        val loginIntent = Intent(this, MainActivity::class.java)
+        val loginIntent = Intent(this, LoginActivity::class.java)
         startActivity(loginIntent)
         finish()
     }

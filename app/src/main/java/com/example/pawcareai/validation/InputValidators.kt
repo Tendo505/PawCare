@@ -142,8 +142,9 @@ object PetInputValidator
         return when
         {
             weight.isBlank() -> null
-            parsedWeight == null -> "Enter a valid weight."
+            parsedWeight == null || !parsedWeight.isFinite() -> "Enter a valid weight."
             parsedWeight <= 0.0 -> "Weight must be greater than 0 kg."
+            parsedWeight > 300.0 -> "Weight cannot exceed 300 kg."
             else -> null
         }
     }

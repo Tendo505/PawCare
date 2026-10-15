@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    android:id="@+id/petCard"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    app:cardCornerRadius="20dp"
+    app:cardElevation="1dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/paw_surface_variant"
+    app:cardBackgroundColor="@color/white"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="18dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+            <TextView
+                android:id="@+id/petIcon"
+                android:layout_width="52dp"
+                android:layout_height="wrap_content"
+                android:text="🐈"
+                android:textSize="34sp"
+                android:textStyle="normal"
+                android:textColor="@color/paw_text"
+                android:lineSpacingMultiplier="1.1" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView
+                    android:id="@+id/petName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textSize="21sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/paw_text"
+                    android:lineSpacingMultiplier="1.1"
+                    tools:text="Pet name" />
+                <TextView
+                    android:id="@+id/petBreed"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textSize="14sp"
+                    android:textStyle="normal"
+                    android:textColor="@color/paw_muted"
+                    android:lineSpacingMultiplier="1.1"
+                    android:layout_marginTop="2dp"
+                    tools:text="Breed · Species" />
+            </LinearLayout>
+        </LinearLayout>
+        <TextView
+            android:id="@+id/petDetails"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="14sp"
+            android:textStyle="normal"
+            android:textColor="@color/paw_muted"
+            android:lineSpacingMultiplier="1.1"
+            android:layout_marginTop="13dp"
+            tools:text="Sex  •  Weight  •  Birth date" />
+        <TextView
+            android:id="@+id/petMicrochip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="13sp"
+            android:textStyle="normal"
+            android:textColor="@color/paw_muted"
+            android:lineSpacingMultiplier="1.1"
+            android:layout_marginTop="5dp"
+            android:visibility="gone" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:layout_marginTop="12dp">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/petEdit"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:text="Edit"
+                app:cornerRadius="12dp"
+                android:textSize="12sp"
+                android:minHeight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:layout_marginLeft="8dp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/petDelete"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:text="Delete"
+                app:cornerRadius="12dp"
+                android:textSize="12sp"
+                android:minHeight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:layout_marginLeft="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

@@ -20,6 +20,7 @@ import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import okhttp3.RequestBody
+import java.util.concurrent.TimeUnit
 
 //1.request and response data
 
@@ -308,12 +309,15 @@ object NetworkModule
     }
 
     //configure requests and basic connection logging
-    private fun createBackendClient(): OkHttpClient
+    internal fun createBackendClient(): OkHttpClient
     {
         val logging: HttpLoggingInterceptor = HttpLoggingInterceptor()
         logging.level = HttpLoggingInterceptor.Level.BASIC
 
         val clientBuilder: OkHttpClient.Builder = OkHttpClient.Builder()
+        //allow laravel's 45-second ai request to finish before the mobile request times out
+        clientBuilder.readTimeout(60, TimeUnit.SECONDS)
+        clientBuilder.writeTimeout(30, TimeUnit.SECONDS)
         clientBuilder.addInterceptor { chain ->
             val request: Request = prepareRequest(chain.request())
             chain.proceed(request)
@@ -343,6 +347,8 @@ object NetworkModule
     {
         val gson: Gson = GsonBuilder()
             .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
+            //send cleared optional fields instead of silently keeping their old values
+            .serializeNulls()
             .create()
 
         val converter: GsonConverterFactory = GsonConverterFactory.create(gson)

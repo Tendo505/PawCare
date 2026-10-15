@@ -93,8 +93,12 @@ class AppRepository(context: Context)
             result.onSuccess { user ->
                 activeUser = user.toUserAccount()
             }
-            result.onFailure {
-                clearSession()
+            result.onFailure { error ->
+                //a lost connection does not mean the saved token is invalid
+                if (error is ApiRequestException && error.statusCode == 401)
+                {
+                    clearSession()
+                }
             }
 
             val accountResult: Result<UserAccount> = result.map { user -> user.toUserAccount() }

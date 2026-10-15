@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--screen structure; DashboardActivity supplies account data and button actions-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="20dp"
+    android:paddingTop="18dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="32dp"
+    tools:context=".DashboardActivity">
+    <TextView
+        android:id="@+id/homeGreeting"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Hello 👋"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="@color/paw_text"
+        android:lineSpacingMultiplier="1.1" />
+    <TextView
+        android:id="@+id/homeSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Here is your pet care overview."
+        android:textSize="15sp"
+        android:textStyle="normal"
+        android:textColor="@color/paw_muted"
+        android:lineSpacingMultiplier="1.1"
+        android:layout_marginTop="4dp" />
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/homeHero"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="1dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/paw_surface_variant"
+        app:cardBackgroundColor="@color/paw_primary"
+        android:layout_marginTop="22dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="18dp">
+            <TextView
+                android:id="@+id/homeHeroTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Healthy routines, happier paws"
+                android:textSize="21sp"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                android:lineSpacingMultiplier="1.1" />
+            <TextView
+                android:id="@+id/homeHeroSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Track visits, vaccines, and reminders in one private place."
+                android:textSize="14sp"
+                android:textStyle="normal"
+                android:textColor="@color/white"
+                android:lineSpacingMultiplier="1.1"
+                android:layout_marginTop="8dp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+    <TextView
+        android:id="@+id/homeConnectionTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="System connection"
+        android:textSize="19sp"
+        android:textStyle="bold"
+        android:textColor="@color/paw_text"
+        android:lineSpacingMultiplier="1.1"
+        android:layout_marginTop="24dp" />
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/homeConnection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="1dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/paw_surface_variant"
+        app:cardBackgroundColor="@color/white"
+        android:layout_marginTop="10dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="18dp">
+            <TextView
+                android:id="@+id/connectionTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Checking system services…"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/paw_text"
+                android:lineSpacingMultiplier="1.1" />
+            <TextView
+                android:id="@+id/connectionLaravel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Laravel API: Checking"
+                android:textSize="13sp"
+                android:textStyle="normal"
+                android:textColor="@color/paw_muted"
+                android:lineSpacingMultiplier="1.1"
+                android:layout_marginTop="8dp" />
+            <TextView
+                android:id="@+id/connectionDatabase"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="PostgreSQL: Checking"
+                android:textSize="13sp"
+                android:textStyle="normal"
+                android:textColor="@color/paw_muted"
+                android:lineSpacingMultiplier="1.1"
+                android:layout_marginTop="4dp" />
+            <TextView
+                android:id="@+id/connectionAi"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="AI service: Checking"
+                android:textSize="13sp"
+                android:textStyle="normal"
+                android:textColor="@color/paw_muted"
+                android:lineSpacingMultiplier="1.1"
+                android:layout_marginTop="4dp" />
+            <TextView
+                android:id="@+id/connectionModel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="12sp"
+                android:textStyle="normal"
+                android:textColor="@color/paw_muted"
+                android:lineSpacingMultiplier="1.1"
+                android:layout_marginTop="4dp"
+                android:visibility="gone" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/connectionRetry"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:text="Check again"
+                app:cornerRadius="12dp"
+                android:textSize="12sp"
+                android:minHeight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:layout_marginTop="12dp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+    <TextView
+        android:id="@+id/homeStatsTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="At a glance"
+        android:textSize="19sp"
+        android:textStyle="bold"
+        android:textColor="@color/paw_text"
+        android:lineSpacingMultiplier="1.1"
+        android:layout_marginTop="24dp" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp">
+        <include
+            android:id="@+id/petStat"
+            layout="@layout/item_dashboard_stat"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginLeft="0dp" />
+        <include
+            android:id="@+id/vaccineStat"
+            layout="@layout/item_dashboard_stat"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginLeft="10dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp">
+        <include
+            android:id="@+id/appointmentStat"
+            layout="@layout/item_dashboard_stat"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginLeft="0dp" />
+        <include
+            android:id="@+id/medicalStat"
+            layout="@layout/item_dashboard_stat"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginLeft="10dp" />
+    </LinearLayout>
+    <TextView
+        android:id="@+id/homeRemindersTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Coming up"
+        android:textSize="19sp"
+        android:textStyle="bold"
+        android:textColor="@color/paw_text"
+        android:lineSpacingMultiplier="1.1"
+        android:layout_marginTop="24dp" />
+    <LinearLayout
+        android:id="@+id/homeReminders"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+    <TextView
+        android:id="@+id/homeActionsTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Quick actions"
+        android:textSize="19sp"
+        android:textStyle="bold"
+        android:textColor="@color/paw_text"
+        android:lineSpacingMultiplier="1.1"
+        android:layout_marginTop="24dp" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/homeAddPet"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="Add pet"
+            app:cornerRadius="14dp"
+            android:layout_weight="1" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/homeBookVisit"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="Book visit"
+            app:cornerRadius="14dp"
+            android:layout_weight="1"
+            android:layout_marginLeft="10dp" />
+    </LinearLayout>
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/homeRecognize"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="Recognize a breed"
+        app:cornerRadius="14dp"
+        android:layout_marginTop="10dp" />
+</LinearLayout>

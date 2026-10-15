@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--screen structure; DashboardActivity supplies account data and button actions-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="20dp"
+    android:paddingTop="18dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="32dp"
+    tools:context=".DashboardActivity">
+    <TextView
+        android:id="@+id/healthTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Health timeline"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="@color/paw_text"
+        android:lineSpacingMultiplier="1.1" />
+    <TextView
+        android:id="@+id/healthSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Vaccinations, visits, and appointments for every pet."
+        android:textSize="15sp"
+        android:textStyle="normal"
+        android:textColor="@color/paw_muted"
+        android:lineSpacingMultiplier="1.1"
+        android:layout_marginTop="4dp" />
+    <LinearLayout
+        android:id="@+id/vaccinationHeading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:layout_marginTop="24dp">
+        <TextView
+            android:id="@+id/vaccinationHeadingTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="💉 Vaccinations"
+            android:textSize="19sp"
+            android:textStyle="bold"
+            android:textColor="@color/paw_text"
+            android:lineSpacingMultiplier="1.1"
+            android:layout_weight="1" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/healthAddVaccine"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="42dp"
+            android:text="Add vaccine"
+            app:cornerRadius="12dp"
+            android:textSize="12sp"
+            android:minHeight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/vaccinationList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+    <LinearLayout
+        android:id="@+id/appointmentHeading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:layout_marginTop="28dp">
+        <TextView
+            android:id="@+id/appointmentHeadingTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="📅 Appointments"
+            android:textSize="19sp"
+            android:textStyle="bold"
+            android:textColor="@color/paw_text"
+            android:lineSpacingMultiplier="1.1"
+            android:layout_weight="1" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/healthBookVisit"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="42dp"
+            android:text="Book visit"
+            app:cornerRadius="12dp"
+            android:textSize="12sp"
+            android:minHeight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/appointmentList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+    <LinearLayout
+        android:id="@+id/medicalHeading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:layout_marginTop="28dp">
+        <TextView
+            android:id="@+id/medicalHeadingTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="🩺 Medical records"
+            android:textSize="19sp"
+            android:textStyle="bold"
+            android:textColor="@color/paw_text"
+            android:lineSpacingMultiplier="1.1"
+            android:layout_weight="1" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/healthAddRecord"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="42dp"
+            android:text="Add record"
+            app:cornerRadius="12dp"
+            android:textSize="12sp"
+            android:minHeight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/medicalList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+</LinearLayout>
