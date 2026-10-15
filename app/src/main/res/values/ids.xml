@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--keep the view identifiers for records displayed by DashboardActivity-->
+    <item type="id" name="petCard" />
+    <item type="id" name="petIcon" />
+    <item type="id" name="petName" />
+    <item type="id" name="petBreed" />
+    <item type="id" name="petDetails" />
+    <item type="id" name="petMicrochip" />
+    <item type="id" name="petEdit" />
+    <item type="id" name="petDelete" />
+    <item type="id" name="recordCard" />
+    <item type="id" name="recordTitle" />
+    <item type="id" name="recordSubtitle" />
+    <item type="id" name="recordDetail" />
+    <item type="id" name="recordEdit" />
+    <item type="id" name="recordDelete" />
+    <item type="id" name="messageCard" />
+    <item type="id" name="messageTitle" />
+    <item type="id" name="messageSubtitle" />
+</resources>

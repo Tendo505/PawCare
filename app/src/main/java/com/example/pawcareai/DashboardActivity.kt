@@ -586,10 +586,10 @@ class DashboardActivity : AppCompatActivity()
         bindSystemHealth(root)
 
         val stats = repository.stats()
-        bindStat(root.findViewById(R.id.petStat), "🐾", stats.petCount, "Pets")
-        bindStat(root.findViewById(R.id.vaccineStat), "💉", stats.upcomingVaccinations, "Vaccines due")
-        bindStat(root.findViewById(R.id.appointmentStat), "📅", stats.scheduledAppointments, "Appointments")
-        bindStat(root.findViewById(R.id.medicalStat), "🩺", stats.medicalRecordCount, "Health records")
+        root.findViewById<TextView>(R.id.petStatValue).text = stats.petCount.toString()
+        root.findViewById<TextView>(R.id.vaccineStatValue).text = stats.upcomingVaccinations.toString()
+        root.findViewById<TextView>(R.id.appointmentStatValue).text = stats.scheduledAppointments.toString()
+        root.findViewById<TextView>(R.id.medicalStatValue).text = stats.medicalRecordCount.toString()
         val remindersContainer = root.findViewById<LinearLayout>(R.id.homeReminders)
         val reminders = mutableListOf<Triple<String, String, String>>()
         val upcomingAppointments = AppointmentReminderCalculator.upcoming(repository.appointments(), limit = 3)
@@ -632,14 +632,6 @@ class DashboardActivity : AppCompatActivity()
             bottomNavigation.selectedItemId = R.id.nav_ai
         }
         show(root)
-    }
-
-    //fill one reusable dashboard total
-    private fun bindStat(card: View, icon: String, value: Int, caption: String)
-    {
-        card.findViewById<TextView>(R.id.statIcon).text = icon
-        card.findViewById<TextView>(R.id.statValue).text = value.toString()
-        card.findViewById<TextView>(R.id.statCaption).text = caption
     }
 
     //display all pet profiles and the add-pet action
@@ -875,26 +867,45 @@ class DashboardActivity : AppCompatActivity()
         return historyCard
     }
 
-    //fill a pet profile card and attach edit and delete actions
+    //display each saved pet inside the pet screen
     private fun petCard(pet: Pet): MaterialCardView
     {
-        val card = layoutInflater.inflate(R.layout.item_pet_card, contentContainer, false) as MaterialCardView
-        card.findViewById<TextView>(R.id.petName).text = pet.name
-        card.findViewById<TextView>(R.id.petBreed).text = "${pet.breed.ifBlank { "Unknown breed" }} · ${pet.species}"
-        card.findViewById<TextView>(R.id.petIcon).text = if (pet.species == "Cat") "🐈" else "🐕"
-        card.findViewById<TextView>(R.id.petDetails).text = "${pet.sex}  •  ${pet.weightKg.clean()} kg  •  Born ${prettyDate(pet.birthDate)}"
-        val microchip = card.findViewById<TextView>(R.id.petMicrochip)
+        val body = vertical(18)
+        val heading = LinearLayout(this)
+        heading.gravity = Gravity.CENTER_VERTICAL
+        val icon = label(if (pet.species == "Cat") "🐈" else "🐕", 34, false, R.color.paw_text)
+        icon.id = R.id.petIcon
+        heading.addView(icon, LinearLayout.LayoutParams(dp(52), ViewGroup.LayoutParams.WRAP_CONTENT))
+        val identity = vertical()
+        val name = label(pet.name, 21, true, R.color.paw_text)
+        name.id = R.id.petName
+        identity.addView(name)
+        val breed = label("${pet.breed.ifBlank { "Unknown breed" }} · ${pet.species}", 14, false, R.color.paw_muted)
+        breed.id = R.id.petBreed
+        identity.addView(breed.withTopMargin(2))
+        heading.addView(identity, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        body.addView(heading)
+        val details = label("${pet.sex}  •  ${pet.weightKg.clean()} kg  •  Born ${prettyDate(pet.birthDate)}", 14, false, R.color.paw_muted)
+        details.id = R.id.petDetails
+        body.addView(details.withTopMargin(13))
+        val microchip = label("Microchip: ${pet.microchipNumber}", 13, false, R.color.paw_muted)
+        microchip.id = R.id.petMicrochip
         microchip.visibility = if (pet.microchipNumber.isBlank()) View.GONE else View.VISIBLE
-        microchip.text = "Microchip: ${pet.microchipNumber}"
-        card.findViewById<MaterialButton>(R.id.petEdit).setOnClickListener { showPetDialog(pet) }
-        card.findViewById<MaterialButton>(R.id.petDelete).setOnClickListener {
-            confirmDelete("Delete ${pet.name}?", "All linked health records will also be removed.") {
-                repository.deletePet(pet.id) { result ->
-                    handleDatabaseResult(result) { renderPetsScreen() }
+        body.addView(microchip.withTopMargin(5))
+        body.addView(recordActions(R.id.petEdit, R.id.petDelete,
+            onEdit = { showPetDialog(pet) },
+            onDelete = {
+                confirmDelete("Delete ${pet.name}?", "All linked health records will also be removed.") {
+                    repository.deletePet(pet.id) { result ->
+                        handleDatabaseResult(result) { renderPetsScreen() }
+                    }
                 }
             }
-        }
-        return card
+        ).withTopMargin(12))
+        val container = card(R.color.white)
+        container.id = R.id.petCard
+        container.addView(body)
+        return container
     }
 
     //create a vaccination card with its saved care details
@@ -969,7 +980,7 @@ class DashboardActivity : AppCompatActivity()
         )
     }
 
-    //fill the common health card and attach record actions
+    //display each saved health record inside the health screen
     private fun recordCard(
         title: String,
         subtitle: String,
@@ -978,15 +989,44 @@ class DashboardActivity : AppCompatActivity()
         onDelete: () -> Unit
     ): MaterialCardView
     {
-        val card = layoutInflater.inflate(R.layout.item_health_record, contentContainer, false) as MaterialCardView
-        card.findViewById<TextView>(R.id.recordTitle).text = title
-        card.findViewById<TextView>(R.id.recordSubtitle).text = subtitle
-        val detailView = card.findViewById<TextView>(R.id.recordDetail)
-        detailView.text = detail
+        val body = vertical(16)
+        val titleView = label(title, 17, true, R.color.paw_text)
+        titleView.id = R.id.recordTitle
+        body.addView(titleView)
+        val subtitleView = label(subtitle, 14, false, R.color.paw_primary)
+        subtitleView.id = R.id.recordSubtitle
+        body.addView(subtitleView.withTopMargin(4))
+        val detailView = label(detail, 13, false, R.color.paw_muted)
+        detailView.id = R.id.recordDetail
         detailView.visibility = if (detail.isBlank()) View.GONE else View.VISIBLE
-        card.findViewById<MaterialButton>(R.id.recordEdit).setOnClickListener { onEdit() }
-        card.findViewById<MaterialButton>(R.id.recordDelete).setOnClickListener { onDelete() }
-        return card
+        body.addView(detailView.withTopMargin(5))
+        body.addView(recordActions(R.id.recordEdit, R.id.recordDelete, onEdit, onDelete).withTopMargin(8))
+        val container = card(R.color.white)
+        container.id = R.id.recordCard
+        container.addView(body)
+        return container
+    }
+
+    //keep edit and delete actions beside their record
+    private fun recordActions(editId: Int, deleteId: Int, onEdit: () -> Unit, onDelete: () -> Unit): LinearLayout
+    {
+        val actions = LinearLayout(this)
+        actions.gravity = Gravity.END
+        listOf(Triple(editId, "Edit", onEdit), Triple(deleteId, "Delete", onDelete)).forEach { (id, text, action) ->
+            val button = MaterialButton(this, null, R.attr.materialButtonOutlinedStyle)
+            button.id = id
+            button.text = text
+            button.textSize = 12f
+            button.cornerRadius = dp(12)
+            button.minHeight = 0
+            button.insetTop = 0
+            button.insetBottom = 0
+            button.setOnClickListener { action() }
+            val position = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(42))
+            position.leftMargin = dp(8)
+            actions.addView(button, position)
+        }
+        return actions
     }
 
     //create the content area with the existing screen spacing
@@ -1069,13 +1109,20 @@ class DashboardActivity : AppCompatActivity()
         return container
     }
 
-    //fill the reusable empty or error message card
+    //display an empty or error message inside the current screen
     private fun emptyCard(title: String, subtitle: String): MaterialCardView
     {
-        val card = layoutInflater.inflate(R.layout.item_message_card, contentContainer, false) as MaterialCardView
-        card.findViewById<TextView>(R.id.messageTitle).text = title
-        card.findViewById<TextView>(R.id.messageSubtitle).text = subtitle
-        return card
+        val body = vertical(18)
+        val titleView = label(title, 16, true, R.color.paw_text)
+        titleView.id = R.id.messageTitle
+        body.addView(titleView)
+        val subtitleView = label(subtitle, 13, false, R.color.paw_muted)
+        subtitleView.id = R.id.messageSubtitle
+        body.addView(subtitleView.withTopMargin(4))
+        val container = card(R.color.white)
+        container.id = R.id.messageCard
+        container.addView(body)
+        return container
     }
 
     //display the summary of a saved record
