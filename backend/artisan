@@ -1,0 +1,17 @@
+#!/usr/bin/env php
+<?php
+
+use Illuminate\Foundation\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+
+// Start the command timer and load dependencies
+define('LARAVEL_START', microtime(true));
+require __DIR__.'/vendor/autoload.php';
+
+// Run the requested Artisan command
+/** @var Application $app */
+$app = require_once __DIR__.'/bootstrap/app.php';
+$status = $app->handleCommand(new ArgvInput);
+
+// Return the command result to the terminal
+exit($status);

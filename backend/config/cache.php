@@ -1,0 +1,25 @@
+<?php
+
+return [
+    // Select the cache store
+    'default' => env('CACHE_STORE', 'file'),
+    'stores' => [
+        'file' => [
+            'driver' => 'file',
+            'path' => storage_path('framework/cache/data'),
+            'lock_path' => storage_path('framework/cache/data'),
+        ],
+        'array' => [
+            'driver' => 'array',
+            'serialize' => false,
+        ],
+        'database' => [
+            'driver' => 'database',
+            'connection' => env('DB_CACHE_CONNECTION'),
+            'table' => env('DB_CACHE_TABLE', 'cache'),
+        ],
+    ],
+
+    // Separate PawCare cache keys from other applications
+    'prefix' => env('CACHE_PREFIX', 'pawcare_cache_'),
+];
