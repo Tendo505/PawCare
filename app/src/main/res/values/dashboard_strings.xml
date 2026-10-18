@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--text shown by the dashboard screens, dialogs and record cards-->
+
+    <!--shared actions and messages-->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_keep">Keep</string>
+    <string name="action_try_again">Try again</string>
+    <string name="unknown_pet">Unknown pet</string>
+    <string name="date_not_set">Not set</string>
+    <string name="database_update_failed">The database could not be updated. Check the Laravel connection and try again.</string>
+    <string name="loading_records">Loading your PostgreSQL records…</string>
+    <string name="records_load_failed_title">Could not load your records</string>
+    <string name="records_load_failed_message">Make sure PostgreSQL and the Laravel API are running, then try again.</string>
+
+    <!--sign out-->
+    <string name="sign_out_title">Sign out?</string>
+    <string name="sign_out_message">Your PawCare records will remain safely stored in PostgreSQL.</string>
+
+    <!--toolbar titles-->
+    <string name="title_pets">My pets</string>
+    <string name="title_health">Health records</string>
+    <string name="title_ai">AI breed recognition</string>
+
+    <!--home screen-->
+    <string name="home_greeting">Hello, %1$s 👋</string>
+    <string name="reminder_appointment">Appointment · %1$s</string>
+    <string name="reminder_vaccination">Vaccination · %1$s</string>
+    <string name="reminder_due">Due %1$s</string>
+    <string name="reminders_empty_title">No reminders yet</string>
+    <string name="reminders_empty_message">Add an appointment or vaccination record to see it here.</string>
+
+    <!--system health card-->
+    <string name="health_all_connected">All services connected</string>
+    <string name="health_degraded">Core records connected; one service needs attention</string>
+    <string name="health_unavailable">Laravel connection unavailable</string>
+    <string name="health_checking">Checking system services…</string>
+    <string name="health_laravel">Laravel API: %1$s</string>
+    <string name="health_database">PostgreSQL: %1$s</string>
+    <string name="health_ai">AI service: %1$s</string>
+    <string name="health_model">Model: %1$s</string>
+    <string name="service_connected">Connected</string>
+    <string name="service_model_missing">Model not loaded</string>
+    <string name="service_unavailable">Unavailable</string>
+    <string name="service_not_confirmed">Not confirmed</string>
+    <string name="service_checking">Checking</string>
+
+    <!--pets screen and pet dialog-->
+    <string name="pets_empty_title">No pets yet</string>
+    <string name="pets_empty_message">Create your first pet profile to start tracking their health.</string>
+    <string name="pet_breed_species">%1$s · %2$s</string>
+    <string name="pet_unknown_breed">Unknown breed</string>
+    <string name="pet_details">"%1$s  •  %2$s kg  •  Born %3$s"</string>
+    <string name="pet_microchip">Microchip: %1$s</string>
+    <string name="pet_delete_title">Delete %1$s?</string>
+    <string name="pet_delete_message">All linked health records will also be removed.</string>
+    <string name="pet_dialog_add">Add pet</string>
+    <string name="pet_dialog_edit">Edit %1$s</string>
+    <string name="field_pet_name">Pet name</string>
+    <string name="field_species">Species</string>
+    <string name="field_breed">Breed</string>
+    <string name="field_sex">Sex</string>
+    <string name="field_birth_date">Birth date (YYYY-MM-DD)</string>
+    <string name="field_weight">Weight in kg</string>
+    <string name="field_microchip">Microchip number (optional)</string>
+    <string name="field_care_notes">Care notes (optional)</string>
+    <string name="pet_required_title">Add a pet first</string>
+    <string name="pet_required_message">Health records must be linked to a pet profile.</string>
+
+    <!--shared health record fields-->
+    <string name="field_pet">Pet</string>
+    <string name="pet_option">%1$s (%2$s)</string>
+    <string name="field_status">Status</string>
+    <string name="field_notes">Notes (optional)</string>
+
+    <!--vaccinations-->
+    <string name="vaccinations_empty_title">No vaccination records</string>
+    <string name="vaccinations_empty_message">Add past doses and future due dates.</string>
+    <string name="vaccination_dialog_add">Add vaccination</string>
+    <string name="vaccination_dialog_edit">Edit vaccination</string>
+    <string name="field_vaccine_name">Vaccine name</string>
+    <string name="field_administered_date">Administered date (optional)</string>
+    <string name="field_due_date">Next due date (YYYY-MM-DD)</string>
+    <string name="field_clinic_optional">Clinic (optional)</string>
+    <string name="vaccination_given">Given %1$s</string>
+    <string name="vaccination_subtitle">%1$s · Due %2$s</string>
+    <string name="vaccination_delete_title">Delete vaccination record?</string>
+
+    <!--appointments-->
+    <string name="appointments_empty_title">No appointments</string>
+    <string name="appointments_empty_message">Schedule a clinic visit and keep the details handy.</string>
+    <string name="appointment_dialog_add">Book appointment</string>
+    <string name="appointment_dialog_edit">Edit appointment</string>
+    <string name="field_appointment_date">Appointment date (YYYY-MM-DD)</string>
+    <string name="field_time">Time (HH:MM)</string>
+    <string name="field_clinic">Clinic</string>
+    <string name="field_reason">Reason for visit</string>
+    <string name="appointment_subtitle">%1$s · %2$s at %3$s</string>
+    <string name="appointment_delete_title">Cancel and remove appointment?</string>
+
+    <!--medical records-->
+    <string name="medical_empty_title">No medical history</string>
+    <string name="medical_empty_message">Record diagnoses and treatments after a clinic visit.</string>
+    <string name="medical_dialog_add">Add medical record</string>
+    <string name="medical_dialog_edit">Edit medical record</string>
+    <string name="field_visit_date">Visit date (YYYY-MM-DD)</string>
+    <string name="field_veterinarian">Veterinarian</string>
+    <string name="field_diagnosis">Diagnosis / visit outcome</string>
+    <string name="field_treatment">Treatment</string>
+    <string name="medical_subtitle">%1$s · %2$s</string>
+    <string name="medical_delete_title">Delete medical record?</string>
+
+    <!--ai scan screen-->
+    <string name="ai_linked_pet">Linked pet: %1$s</string>
+    <string name="ai_link_pet_optional">Link to a pet (optional)</string>
+    <string name="ai_link_pet_title">Link prediction to pet</string>
+    <string name="ai_do_not_link">Do not link to a pet</string>
+    <string name="ai_choose_photo">Choose photo</string>
+    <string name="ai_choose_another_photo">Choose another photo</string>
+    <string name="ai_error_title">Could not analyze the photo</string>
+    <string name="ai_error_unreadable">The selected image could not be read. Please choose another photo.</string>
+    <string name="ai_error_too_large">The selected image is larger than 10 MB. Choose a smaller photo.</string>
+    <string name="ai_error_type">Choose a JPG, PNG, or WebP image.</string>
+    <string name="ai_error_generic">The image could not be analyzed. Check Laravel and FastAPI, then try again.</string>
+    <string name="ai_history_empty_title">No saved predictions</string>
+    <string name="ai_history_empty_message">A successful result will be stored in PostgreSQL and listed here.</string>
+    <string name="ai_best_match">Best match</string>
+    <string name="ai_confidence">%1$s · %2$d%% confidence</string>
+    <string name="ai_other_possibilities">Other possibilities</string>
+    <string name="ai_other_option">• %1$s — %2$d%%</string>
+    <string name="ai_saved_for">Saved for %1$s</string>
+</resources>

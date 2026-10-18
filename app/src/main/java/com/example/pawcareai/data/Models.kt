@@ -24,7 +24,6 @@ data class SystemHealth(
 //store a pet profile for display and editing
 data class Pet(
     val id: Long = 0,
-    val ownerEmail: String = "",
     val name: String = "",
     val species: String = "Dog",
     val breed: String = "",
@@ -38,7 +37,6 @@ data class Pet(
 //store a pet's vaccination history and next due date
 data class VaccinationRecord(
     val id: Long = 0,
-    val ownerEmail: String = "",
     val petId: Long = 0,
     val vaccineName: String = "",
     val administeredDate: String = "",
@@ -51,7 +49,6 @@ data class VaccinationRecord(
 //store a pet's clinic visit and treatment details
 data class MedicalRecord(
     val id: Long = 0,
-    val ownerEmail: String = "",
     val petId: Long = 0,
     val visitDate: String = "",
     val veterinarian: String = "",
@@ -63,7 +60,6 @@ data class MedicalRecord(
 //store an appointment and its current status
 data class Appointment(
     val id: Long = 0,
-    val ownerEmail: String = "",
     val petId: Long = 0,
     val appointmentDate: String = "",
     val appointmentTime: String = "",
@@ -84,7 +80,6 @@ data class BreedPredictionOption(
 //store a saved scan result and its alternative breed predictions
 data class BreedPrediction(
     val id: Long = 0,
-    val ownerEmail: String = "",
     val petId: Long? = null,
     val petName: String = "",
     val species: String = "",
