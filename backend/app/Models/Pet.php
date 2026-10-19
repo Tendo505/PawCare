@@ -5,9 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+//one pet profile belonging to an owner (table: pets)
 class Pet extends Model
 {
     use HasFactory;
+
+    //1.setup
 
     //pet profile fields that can be saved
     protected $fillable = [
@@ -31,6 +34,8 @@ class Pet extends Model
             'weight_kg' => 'decimal:2'
         ];
     }
+
+    //4.output
 
     //get the owner of this pet
     public function user()

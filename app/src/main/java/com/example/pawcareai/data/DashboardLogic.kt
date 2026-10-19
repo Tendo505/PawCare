@@ -15,11 +15,28 @@ object DashboardCalculator
         medicalRecords: List<MedicalRecord>
     ): DashboardStats
     {
-        val petCount = pets.size
+        val petCount: Int = pets.size
+        val medicalRecordCount: Int = medicalRecords.size
+
         //count every vaccination not marked completed
-        val upcomingVaccinations = vaccinations.count { vaccination -> vaccination.status != "Completed" }
-        val scheduledAppointments = appointments.count { appointment -> appointment.status == "Scheduled" }
-        val medicalRecordCount = medicalRecords.size
+        var upcomingVaccinations: Int = 0
+        for (vaccination in vaccinations)
+        {
+            if (vaccination.status != "Completed")
+            {
+                upcomingVaccinations = upcomingVaccinations + 1
+            }
+        }
+
+        //count every appointment that is still scheduled
+        var scheduledAppointments: Int = 0
+        for (appointment in appointments)
+        {
+            if (appointment.status == "Scheduled")
+            {
+                scheduledAppointments = scheduledAppointments + 1
+            }
+        }
 
         return DashboardStats(
             petCount = petCount,
@@ -47,18 +64,31 @@ object AppointmentReminderCalculator
         limit: Int = 5
     ): List<AppointmentReminder>
     {
-        val reminders = appointments.mapNotNull { appointment ->
-            createReminder(appointment, today)
+        //keep only the appointments that need a reminder
+        val reminders: MutableList<AppointmentReminder> = mutableListOf()
+        for (appointment in appointments)
+        {
+            val reminder: AppointmentReminder? = createReminder(appointment, today)
+            if (reminder != null)
+            {
+                reminders.add(reminder)
+            }
         }
 
-        val orderedReminders = reminders.sortedWith(
+        //soonest first: by date, then by time on the same day
+        val orderedReminders: List<AppointmentReminder> = reminders.sortedWith(
             compareBy(
-                { it.appointment.appointmentDate },
-                { it.appointment.appointmentTime }
+                { reminder -> reminder.appointment.appointmentDate },
+                { reminder -> reminder.appointment.appointmentTime }
             )
         )
-        val reminderLimit = limit.coerceAtLeast(0)
 
+        //a negative limit is treated as 0
+        var reminderLimit: Int = limit
+        if (reminderLimit < 0)
+        {
+            reminderLimit = 0
+        }
         return orderedReminders.take(reminderLimit)
     }
 
@@ -68,16 +98,25 @@ object AppointmentReminderCalculator
         today: LocalDate
     ): AppointmentReminder?
     {
-        val scheduledAppointment = appointment.takeIf { it.status == "Scheduled" } ?: return null
-        val appointmentDate = parseDate(scheduledAppointment.appointmentDate)
-            ?.takeUnless { it.isBefore(today) } ?: return null
+        //completed and cancelled visits do not need a reminder
+        if (appointment.status != "Scheduled")
+        {
+            return null
+        }
+
+        //skip dates that cannot be read and visits that are already in the past
+        val appointmentDate: LocalDate? = parseDate(appointment.appointmentDate)
+        if (appointmentDate == null || appointmentDate.isBefore(today))
+        {
+            return null
+        }
 
         //appointment date minus today
-        val daysUntil = ChronoUnit.DAYS.between(today, appointmentDate)
+        val daysUntil: Long = ChronoUnit.DAYS.between(today, appointmentDate)
         return AppointmentReminder(
-            appointment = scheduledAppointment,
+            appointment = appointment,
             daysUntil = daysUntil,
-            label = createLabel(scheduledAppointment, daysUntil)
+            label = createLabel(appointment, daysUntil)
         )
     }
 
@@ -87,8 +126,12 @@ object AppointmentReminderCalculator
         today: LocalDate = LocalDate.now()
     ): String?
     {
-        val reminder = upcoming(listOf(appointment), today, 1).firstOrNull()
-        return reminder?.label
+        val reminders: List<AppointmentReminder> = upcoming(listOf(appointment), today, 1)
+        if (reminders.isEmpty())
+        {
+            return null
+        }
+        return reminders[0].label
     }
 
     //4.format the remaining time

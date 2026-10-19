@@ -5,98 +5,89 @@ import com.example.pawcareai.network.PawCareApi
 import com.example.pawcareai.network.VaccinationRequest
 import retrofit2.Call
 
-//vaccination records loaded through laravel
-class VaccinationRepository(private val api: PawCareApi)
+//saves and deletes vaccination records through laravel, then updates the phone copy
+class VaccinationRepository(
+    private val api: PawCareApi,
+    private val cache: RecordCache
+)
 {
-    //temporary screen data loaded through laravel
-    private var vaccinationCache: List<VaccinationRecord> = emptyList()
-
     //2.input
 
-    //prepare vaccination details for saving
-    private fun VaccinationRecord.toRequest(): VaccinationRequest
+    //build the json body laravel expects; empty optional fields are sent as null
+    private fun createRequest(record: VaccinationRecord): VaccinationRequest
     {
         return VaccinationRequest(
-            petId = petId,
-            vaccineName = vaccineName.trim(),
-            administeredDate = administeredDate.trim().nullIfBlank(),
-            dueDate = dueDate,
-            clinic = clinic.trim().nullIfBlank(),
-            status = status,
-            notes = notes.trim().nullIfBlank()
+            petId = record.petId,
+            vaccineName = record.vaccineName.trim(),
+            administeredDate = blankToNull(record.administeredDate),
+            dueDate = record.dueDate,
+            clinic = blankToNull(record.clinic),
+            status = record.status,
+            notes = blankToNull(record.notes)
         )
     }
 
     //3.process
 
-    //create or update a vaccination record
+    //create a new vaccination (POST) or update an existing one (PUT vaccinations/{id})
     fun saveVaccination(record: VaccinationRecord, onResult: (Result<VaccinationRecord>) -> Unit)
     {
-        val saveCall: Call<ApiVaccination> = if (record.id > 0)
+        val request: VaccinationRequest = createRequest(record)
+        val saveCall: Call<ApiVaccination>
+        if (record.id > 0)
         {
-            api.updateVaccination(record.id, record.toRequest())
+            saveCall = api.updateVaccination(record.id, request)
         }
         else
         {
-            api.createVaccination(record.toRequest())
+            saveCall = api.createVaccination(request)
         }
 
-        saveCall.saveResult(
-            convert = { it.toVaccinationRecord() },
-            updateCache = { saved -> vaccinationCache = vaccinationCache.replaceOrAdd(saved) { it.id } },
-            onResult = onResult
-        )
+        saveCall.enqueue(ApiCallback<ApiVaccination>(
+            onSuccess = { apiVaccination ->
+                val savedRecord: VaccinationRecord = RecordConverter.toVaccination(apiVaccination)
+                putInCache(savedRecord)
+                onResult(Result.success(savedRecord))
+            },
+            onFailure = { error ->
+                onResult(Result.failure(error))
+            }
+        ))
     }
 
-    //delete a vaccination record
+    //delete a vaccination (DELETE vaccinations/{id})
     fun deleteVaccination(id: Long, onResult: (Result<Unit>) -> Unit)
     {
-        api.deleteVaccination(id).enqueueEmpty { result ->
-            result.onSuccess {
-                vaccinationCache = vaccinationCache.filterNot { record -> record.id == id }
+        api.deleteVaccination(id).enqueue(EmptyApiCallback(
+            onSuccess = {
+                cache.vaccinations.removeAll { record -> record.id == id }
+                onResult(Result.success(Unit))
+            },
+            onFailure = { error ->
+                onResult(Result.failure(error))
             }
-            onResult(result)
+        ))
+    }
+
+    //replace the record with the same id, or add it at the end when it is new
+    private fun putInCache(savedRecord: VaccinationRecord)
+    {
+        for (index in cache.vaccinations.indices)
+        {
+            if (cache.vaccinations[index].id == savedRecord.id)
+            {
+                cache.vaccinations[index] = savedRecord
+                return
+            }
         }
-    }
-
-    //replace cached vaccinations after a full refresh
-    fun replaceCache(vaccinations: List<ApiVaccination>)
-    {
-        vaccinationCache = vaccinations.map { record -> record.toVaccinationRecord() }
-    }
-
-    //remove vaccinations linked to a deleted pet
-    fun removePet(petId: Long)
-    {
-        vaccinationCache = vaccinationCache.filterNot { record -> record.petId == petId }
-    }
-
-    //remove vaccinations belonging to a cleared session
-    fun clearCache()
-    {
-        vaccinationCache = emptyList()
+        cache.vaccinations.add(savedRecord)
     }
 
     //4.output
 
-    //read vaccinations by due date
+    //read vaccinations with the nearest due date first
     fun vaccinations(): List<VaccinationRecord>
     {
-        return vaccinationCache.sortedBy { record -> record.dueDate }
-    }
-
-    //convert an api vaccination record for the app
-    private fun ApiVaccination.toVaccinationRecord(): VaccinationRecord
-    {
-        return VaccinationRecord(
-            id = id,
-            petId = petId,
-            vaccineName = vaccineName,
-            administeredDate = administeredDate.orEmpty(),
-            dueDate = dueDate,
-            clinic = clinic.orEmpty(),
-            status = status,
-            notes = notes.orEmpty()
-        )
+        return cache.vaccinations.sortedBy { record -> record.dueDate }
     }
 }

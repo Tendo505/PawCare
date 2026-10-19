@@ -5,71 +5,89 @@ import com.example.pawcareai.network.PawCareApi
 import com.example.pawcareai.network.PetRequest
 import retrofit2.Call
 
-//pet profiles loaded through laravel
-class PetRepository(private val api: PawCareApi)
+//saves and deletes pet profiles through laravel, then updates the phone copy
+class PetRepository(
+    private val api: PawCareApi,
+    private val cache: RecordCache
+)
 {
-    //temporary screen data loaded through laravel
-    private var petCache: List<Pet> = emptyList()
-
     //2.input
 
-    //prepare pet details for saving
-    private fun Pet.toRequest(): PetRequest
+    //build the json body laravel expects; empty optional fields are sent as null
+    private fun createRequest(pet: Pet): PetRequest
     {
+        var weight: Double? = null
+        if (pet.weightKg > 0)
+        {
+            weight = pet.weightKg
+        }
+
         return PetRequest(
-            name = name.trim(),
-            species = species,
-            breed = breed.trim().nullIfBlank(),
-            sex = sex,
-            birthDate = birthDate.trim().nullIfBlank(),
-            weightKg = weightKg.takeIf { weight -> weight > 0 },
-            microchipNumber = microchipNumber.trim().nullIfBlank(),
-            notes = notes.trim().nullIfBlank()
+            name = pet.name.trim(),
+            species = pet.species,
+            breed = blankToNull(pet.breed),
+            sex = pet.sex,
+            birthDate = blankToNull(pet.birthDate),
+            weightKg = weight,
+            microchipNumber = blankToNull(pet.microchipNumber),
+            notes = blankToNull(pet.notes)
         )
     }
 
     //3.process
 
-    //create or update a pet, then refresh its cached record
+    //create a new pet (POST pets) or update an existing one (PUT pets/{id})
     fun savePet(pet: Pet, onResult: (Result<Pet>) -> Unit)
     {
-        val saveCall: Call<ApiPet> = if (pet.id > 0)
+        val request: PetRequest = createRequest(pet)
+        val saveCall: Call<ApiPet>
+        if (pet.id > 0)
         {
-            api.updatePet(pet.id, pet.toRequest())
+            saveCall = api.updatePet(pet.id, request)
         }
         else
         {
-            api.createPet(pet.toRequest())
+            saveCall = api.createPet(request)
         }
 
-        saveCall.saveResult(
-            convert = { it.toPet() },
-            updateCache = { saved -> petCache = petCache.replaceOrAdd(saved) { it.id } },
-            onResult = onResult
-        )
+        saveCall.enqueue(ApiCallback<ApiPet>(
+            onSuccess = { apiPet ->
+                val savedPet: Pet = RecordConverter.toPet(apiPet)
+                putInCache(savedPet)
+                onResult(Result.success(savedPet))
+            },
+            onFailure = { error ->
+                onResult(Result.failure(error))
+            }
+        ))
     }
 
-    //delete a pet and remove it from the cache
+    //delete a pet (DELETE pets/{id}); its health records are removed from the phone copy too
     fun deletePet(id: Long, onResult: (Result<Unit>) -> Unit)
     {
-        api.deletePet(id).enqueueEmpty { result ->
-            result.onSuccess {
-                petCache = petCache.filterNot { pet -> pet.id == id }
+        api.deletePet(id).enqueue(EmptyApiCallback(
+            onSuccess = {
+                cache.removePet(id)
+                onResult(Result.success(Unit))
+            },
+            onFailure = { error ->
+                onResult(Result.failure(error))
             }
-            onResult(result)
+        ))
+    }
+
+    //replace the pet with the same id, or add it at the end when it is new
+    private fun putInCache(savedPet: Pet)
+    {
+        for (index in cache.pets.indices)
+        {
+            if (cache.pets[index].id == savedPet.id)
+            {
+                cache.pets[index] = savedPet
+                return
+            }
         }
-    }
-
-    //replace cached pets after a full refresh
-    fun replaceCache(pets: List<ApiPet>)
-    {
-        petCache = pets.map { pet -> pet.toPet() }
-    }
-
-    //remove pets belonging to a cleared session
-    fun clearCache()
-    {
-        petCache = emptyList()
+        cache.pets.add(savedPet)
     }
 
     //4.output
@@ -77,28 +95,6 @@ class PetRepository(private val api: PawCareApi)
     //read pets in alphabetical order
     fun pets(): List<Pet>
     {
-        return petCache.sortedBy { pet -> pet.name.lowercase() }
-    }
-
-    //find a pet by its record id
-    fun pet(id: Long): Pet?
-    {
-        return petCache.firstOrNull { pet -> pet.id == id }
-    }
-
-    //convert an api pet record for the app
-    private fun ApiPet.toPet(): Pet
-    {
-        return Pet(
-            id = id,
-            name = name,
-            species = species,
-            breed = breed.orEmpty(),
-            sex = sex,
-            birthDate = birthDate.orEmpty(),
-            weightKg = weightKg ?: 0.0,
-            microchipNumber = microchipNumber.orEmpty(),
-            notes = notes.orEmpty()
-        )
+        return cache.pets.sortedBy { pet -> pet.name.lowercase() }
     }
 }

@@ -7,17 +7,26 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
+//checks laravel, the database and the ai service for GET /api/health
+//it never returns passwords, hosts or other connection details
 class SystemHealthService
 {
-    //check each service without returning connection details
+    //4.output
+
+    //"ok" when the database and the ai model are both ready, otherwise "degraded"
     public function check(): array
     {
-        $database = $this->readDatabaseHealth();
-        $ai = $this->readAiHealth();
-        $allReady = $database['status'] === 'ok' && $ai['status'] === 'ready';
+        $database = $this->checkDatabase();
+        $ai = $this->checkAiService();
+
+        $overall = 'degraded';
+        if ($database['status'] === 'ok' && $ai['status'] === 'ready')
+        {
+            $overall = 'ok';
+        }
 
         return [
-            'status' => $allReady ? 'ok' : 'degraded',
+            'status' => $overall,
             'services' => [
                 'laravel' => [
                     'status' => 'ok',
@@ -30,8 +39,10 @@ class SystemHealthService
         ];
     }
 
-    //read database availability with a lightweight connection check
-    private function readDatabaseHealth(): array
+    //3.process
+
+    //run the smallest possible query to see whether the database answers
+    private function checkDatabase(): array
     {
         $database = [
             'status' => 'unavailable',
@@ -43,16 +54,16 @@ class SystemHealthService
             DB::select('select 1');
             $database['status'] = 'ok';
         }
-        catch (Throwable)
+        catch (Throwable $error)
         {
-            //do not return database connection details
+            //the status stays "unavailable"; the error details are not sent to the app
         }
 
         return $database;
     }
 
-    //read the AI service status without interrupting core pet records
-    private function readAiHealth(): array
+    //ask fastapi's /health endpoint, waiting at most 3 seconds
+    private function checkAiService(): array
     {
         $ai = [
             'status' => 'unavailable',
@@ -63,24 +74,29 @@ class SystemHealthService
 
         try
         {
-            $response = Http::acceptJson()
-                ->timeout(3)
-                ->get(rtrim((string) config('services.ai.url'), '/').'/health');
+            $healthUrl = rtrim((string) config('services.ai.url'), '/').'/health';
+            $response = Http::acceptJson()->timeout(3)->get($healthUrl);
 
             if ($response->successful())
             {
                 $modelReady = (bool) $response->json('model_ready', false);
+
+                //"ready" when the model can predict, otherwise fastapi's own status such as "model_missing"
+                $status = 'ready';
+                if (! $modelReady)
+                {
+                    $status = (string) $response->json('status', 'model_missing');
+                }
+
                 $ai = [
-                    'status' => $modelReady
-                        ? 'ready'
-                        : (string) $response->json('status', 'model_missing'),
+                    'status' => $status,
                     'model_ready' => $modelReady,
                     'model_version' => $response->json('model_version'),
                     'label_count' => (int) $response->json('label_count', 0),
                 ];
             }
         }
-        catch (Throwable)
+        catch (Throwable $error)
         {
             //pet records still work when the ai service is offline
         }

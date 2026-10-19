@@ -6,42 +6,43 @@ use App\Models\PetBreed;
 use App\Models\Vaccination;
 use Illuminate\Database\Seeder;
 
+//fills the shared breed and vaccine lists, then adds the demo account (php artisan db:seed)
+//firstOrCreate only adds a row when it is missing, so running this twice never makes duplicates
 class DatabaseSeeder extends Seeder
 {
-    //add the shared breed and vaccine catalogue without duplicating entries
+    //3.process
     public function run(): void
     {
-        //prepare the dog and cat breed catalogue
-        $breeds = [
-            ['Golden Retriever', 'Dog'],
-            ['Poodle', 'Dog'],
-            ['German Shepherd', 'Dog'],
-            ['British Shorthair', 'Cat'],
-            ['Maine Coon', 'Cat'],
-            ['Siamese', 'Cat']
-        ];
+        //the dog and cat breed list
+        $this->addBreed('Golden Retriever', 'Dog');
+        $this->addBreed('Poodle', 'Dog');
+        $this->addBreed('German Shepherd', 'Dog');
+        $this->addBreed('British Shorthair', 'Cat');
+        $this->addBreed('Maine Coon', 'Cat');
+        $this->addBreed('Siamese', 'Cat');
 
-        //create only breed entries that are not already stored
-        foreach ($breeds as [$name, $species])
-        {
-            PetBreed::firstOrCreate(compact('name', 'species'));
-        }
+        //the vaccine list, each repeated every 12 months
+        $this->addVaccine('Rabies', 'Dog', 12);
+        $this->addVaccine('DHPP', 'Dog', 12);
+        $this->addVaccine('Rabies', 'Cat', 12);
+        $this->addVaccine('FVRCP', 'Cat', 12);
 
-        //create only vaccine entries that are not already stored
-        foreach ([
-            ['Rabies', 'Dog', 12],
-            ['DHPP', 'Dog', 12],
-            ['Rabies', 'Cat', 12],
-            ['FVRCP', 'Cat', 12]
-        ] as [$name, $species, $months])
-        {
-            Vaccination::firstOrCreate(
-                compact('name', 'species'),
-                ['recommended_interval_months' => $months]
-            );
-        }
-
-        //add the sample account and records after the shared catalogue
+        //the demo account and its records come after the lists they link to
         $this->call(DemoSeeder::class);
+    }
+
+    //add one breed when it is not stored yet
+    private function addBreed(string $name, string $species): void
+    {
+        PetBreed::firstOrCreate(['name' => $name, 'species' => $species]);
+    }
+
+    //add one vaccine when it is not stored yet
+    private function addVaccine(string $name, string $species, int $months): void
+    {
+        Vaccination::firstOrCreate(
+            ['name' => $name, 'species' => $species],
+            ['recommended_interval_months' => $months]
+        );
     }
 }

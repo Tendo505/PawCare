@@ -4,8 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+//one vaccine dose given or due for a pet (table: vaccination_records)
 class VaccinationRecord extends Model
 {
+    //1.setup
+
     //vaccination record fields that can be saved
     protected $fillable = [
         'pet_id',
@@ -26,6 +29,8 @@ class VaccinationRecord extends Model
             'due_date' => 'date:Y-m-d'
         ];
     }
+
+    //4.output
 
     //get the pet receiving this vaccination
     public function pet()

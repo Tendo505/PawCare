@@ -5,96 +5,88 @@ import com.example.pawcareai.network.MedicalRecordRequest
 import com.example.pawcareai.network.PawCareApi
 import retrofit2.Call
 
-//medical visit records loaded through laravel
-class MedicalRecordRepository(private val api: PawCareApi)
+//saves and deletes medical visit records through laravel, then updates the phone copy
+class MedicalRecordRepository(
+    private val api: PawCareApi,
+    private val cache: RecordCache
+)
 {
-    //temporary screen data loaded through laravel
-    private var medicalRecordCache: List<MedicalRecord> = emptyList()
-
     //2.input
 
-    //prepare medical details for saving
-    private fun MedicalRecord.toRequest(): MedicalRecordRequest
+    //build the json body laravel expects; empty optional fields are sent as null
+    private fun createRequest(record: MedicalRecord): MedicalRecordRequest
     {
         return MedicalRecordRequest(
-            petId = petId,
-            visitDate = visitDate,
-            veterinarian = veterinarian.trim().nullIfBlank(),
-            diagnosis = diagnosis.trim(),
-            treatment = treatment.trim().nullIfBlank(),
-            notes = notes.trim().nullIfBlank()
+            petId = record.petId,
+            visitDate = record.visitDate,
+            veterinarian = blankToNull(record.veterinarian),
+            diagnosis = record.diagnosis.trim(),
+            treatment = blankToNull(record.treatment),
+            notes = blankToNull(record.notes)
         )
     }
 
     //3.process
 
-    //create or update a medical record
+    //create a new medical record (POST) or update an existing one (PUT medical-records/{id})
     fun saveMedicalRecord(record: MedicalRecord, onResult: (Result<MedicalRecord>) -> Unit)
     {
-        val saveCall: Call<ApiMedicalRecord> = if (record.id > 0)
+        val request: MedicalRecordRequest = createRequest(record)
+        val saveCall: Call<ApiMedicalRecord>
+        if (record.id > 0)
         {
-            api.updateMedicalRecord(record.id, record.toRequest())
+            saveCall = api.updateMedicalRecord(record.id, request)
         }
         else
         {
-            api.createMedicalRecord(record.toRequest())
+            saveCall = api.createMedicalRecord(request)
         }
 
-        saveCall.saveResult(
-            convert = { it.toMedicalRecord() },
-            updateCache = { saved -> medicalRecordCache = medicalRecordCache.replaceOrAdd(saved) { it.id } },
-            onResult = onResult
-        )
+        saveCall.enqueue(ApiCallback<ApiMedicalRecord>(
+            onSuccess = { apiRecord ->
+                val savedRecord: MedicalRecord = RecordConverter.toMedicalRecord(apiRecord)
+                putInCache(savedRecord)
+                onResult(Result.success(savedRecord))
+            },
+            onFailure = { error ->
+                onResult(Result.failure(error))
+            }
+        ))
     }
 
-    //delete a medical record
+    //delete a medical record (DELETE medical-records/{id})
     fun deleteMedicalRecord(id: Long, onResult: (Result<Unit>) -> Unit)
     {
-        api.deleteMedicalRecord(id).enqueueEmpty { result ->
-            result.onSuccess {
-                medicalRecordCache = medicalRecordCache.filterNot { record -> record.id == id }
+        api.deleteMedicalRecord(id).enqueue(EmptyApiCallback(
+            onSuccess = {
+                cache.medicalRecords.removeAll { record -> record.id == id }
+                onResult(Result.success(Unit))
+            },
+            onFailure = { error ->
+                onResult(Result.failure(error))
             }
-            onResult(result)
+        ))
+    }
+
+    //replace the record with the same id, or add it at the end when it is new
+    private fun putInCache(savedRecord: MedicalRecord)
+    {
+        for (index in cache.medicalRecords.indices)
+        {
+            if (cache.medicalRecords[index].id == savedRecord.id)
+            {
+                cache.medicalRecords[index] = savedRecord
+                return
+            }
         }
-    }
-
-    //replace cached medical records after a full refresh
-    fun replaceCache(medicalRecords: List<ApiMedicalRecord>)
-    {
-        medicalRecordCache = medicalRecords.map { record -> record.toMedicalRecord() }
-    }
-
-    //remove medical records linked to a deleted pet
-    fun removePet(petId: Long)
-    {
-        medicalRecordCache = medicalRecordCache.filterNot { record -> record.petId == petId }
-    }
-
-    //remove medical records belonging to a cleared session
-    fun clearCache()
-    {
-        medicalRecordCache = emptyList()
+        cache.medicalRecords.add(savedRecord)
     }
 
     //4.output
 
-    //read the latest medical records first
+    //read the latest visit first
     fun medicalRecords(): List<MedicalRecord>
     {
-        return medicalRecordCache.sortedByDescending { record -> record.visitDate }
-    }
-
-    //convert an api medical record for the app
-    private fun ApiMedicalRecord.toMedicalRecord(): MedicalRecord
-    {
-        return MedicalRecord(
-            id = id,
-            petId = petId,
-            visitDate = visitDate,
-            veterinarian = veterinarian.orEmpty(),
-            diagnosis = diagnosis,
-            treatment = treatment.orEmpty(),
-            notes = notes.orEmpty()
-        )
+        return cache.medicalRecords.sortedByDescending { record -> record.visitDate }
     }
 }

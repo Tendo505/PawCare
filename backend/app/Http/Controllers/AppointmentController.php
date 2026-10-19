@@ -8,83 +8,97 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
+//clinic appointments: GET, POST, PUT and DELETE /api/appointments
 class AppointmentController extends Controller
 {
-    //read the owner's appointments with optional status and date filters
+    //GET /api/appointments - the owner's appointments by date and time
+    //optional filters: ?status=Scheduled and ?upcoming=1 (scheduled visits from today onwards)
     public function index(Request $request): JsonResponse
     {
+        //2.input
         $filters = $request->validate([
             'status' => ['nullable', 'in:Scheduled,Completed,Cancelled'],
             'upcoming' => ['nullable', 'in:1,0,true,false'],
         ]);
 
-        $appointments = $request->user()
-            ->appointments()
-            ->with('pet:id,name,species')
-            ->when(
-                isset($filters['status']),
-                fn ($query) => $query->where('status', $filters['status'])
-            )
-            ->when(
-                $request->boolean('upcoming'),
-                fn ($query) => $query
-                    ->where('status', 'Scheduled')
-                    ->whereDate('appointment_date', '>=', today())
-            )
-            ->orderBy('appointment_date')
-            ->orderBy('appointment_time')
-            ->get();
+        //3.process: build the query step by step, adding a filter only when it was asked for
+        $query = $request->user()->appointments()->with('pet:id,name,species');
+        if (isset($filters['status']))
+        {
+            $query->where('status', $filters['status']);
+        }
+        if ($request->boolean('upcoming'))
+        {
+            $query->where('status', 'Scheduled');
+            $query->whereDate('appointment_date', '>=', today());
+        }
+        $appointments = $query->orderBy('appointment_date')->orderBy('appointment_time')->get();
 
+        //4.output
         return response()->json($appointments);
     }
 
-    //create an appointment when the pet's schedule is available
+    //POST /api/appointments - book a visit for one of the owner's pets
     public function store(Request $request): JsonResponse
     {
-        $data = $this->validated($request);
+        //2.input
+        $data = $this->validateAppointment($request);
 
-        //only allow the owner's pets
+        //3.process: the pet must be the owner's, and it cannot have two visits at the same time
         $this->ownedPet($request, (int) $data['pet_id']);
-        $this->ensureScheduleIsAvailable($request, $data);
-
+        $this->checkTimeIsFree($request, $data, null);
         $data['user_id'] = $request->user()->id;
         $appointment = Appointment::create($data);
+        $appointment->load('pet:id,name,species');
 
-        return response()->json($appointment->load('pet:id,name,species'), 201);
+        //4.output
+        return response()->json($appointment, 201);
     }
 
-    //read one appointment and its pet details
+    //GET /api/appointments/{id} - one appointment
     public function show(Request $request, Appointment $appointment): JsonResponse
     {
-        $this->owned($request, $appointment);
+        //3.process
+        $this->checkOwner($request, $appointment);
+        $appointment->load('pet:id,name,species');
 
-        return response()->json($appointment->load('pet:id,name,species'));
+        //4.output
+        return response()->json($appointment);
     }
 
-    //update an appointment after checking ownership and schedule
+    //PUT /api/appointments/{id} - update an appointment
     public function update(Request $request, Appointment $appointment): JsonResponse
     {
-        $this->owned($request, $appointment);
-        $data = $this->validated($request);
-        $this->ownedPet($request, (int) $data['pet_id']);
-        $this->ensureScheduleIsAvailable($request, $data, $appointment);
+        //3.process: check the owner before reading the new details
+        $this->checkOwner($request, $appointment);
 
+        //2.input
+        $data = $this->validateAppointment($request);
+
+        //3.process: the visit being edited does not count as a clash with itself
+        $this->ownedPet($request, (int) $data['pet_id']);
+        $this->checkTimeIsFree($request, $data, $appointment);
         $appointment->update($data);
 
+        //4.output
         return response()->json($appointment->fresh()->load('pet:id,name,species'));
     }
 
-    //delete the owner's appointment
+    //DELETE /api/appointments/{id} - delete an appointment
     public function destroy(Request $request, Appointment $appointment): JsonResponse
     {
-        $this->owned($request, $appointment);
+        //3.process
+        $this->checkOwner($request, $appointment);
         $appointment->delete();
 
+        //4.output
         return response()->json(null, 204);
     }
 
-    //validate appointment fields and reject past scheduled dates
-    private function validated(Request $request): array
+    //2.input
+
+    //the rules for an appointment form; a scheduled visit cannot be in the past
+    private function validateAppointment(Request $request): array
     {
         $data = $request->validate([
             'pet_id' => ['required', 'integer', 'exists:pets,id'],
@@ -97,13 +111,12 @@ class AppointmentController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        //compare the same calendar date even when input formats differ
+        //store the date as YYYY-MM-DD so every comparison uses the same format
         $data['appointment_date'] = Carbon::parse($data['appointment_date'])->toDateString();
 
-        if (
-            $data['status'] === 'Scheduled'
-            && today()->isAfter($data['appointment_date'])
-        )
+        $isScheduled = $data['status'] === 'Scheduled';
+        $isInThePast = today()->isAfter($data['appointment_date']);
+        if ($isScheduled && $isInThePast)
         {
             throw ValidationException::withMessages([
                 'appointment_date' => 'A scheduled appointment cannot be in the past.',
@@ -113,43 +126,48 @@ class AppointmentController extends Controller
         return $data;
     }
 
-    //avoid overlapping visits for the same pet
-    private function ensureScheduleIsAvailable(
-        Request $request,
-        array $data,
-        ?Appointment $current = null
-    ): void
+    //3.process
+
+    //stop when the same pet already has a scheduled visit at this date and time
+    //$current is the appointment being edited, or null when booking a new one
+    private function checkTimeIsFree(Request $request, array $data, ?Appointment $current): void
     {
+        //only scheduled visits can clash
         if ($data['status'] !== 'Scheduled')
         {
             return;
         }
 
-        $scheduledVisits = $request->user()
+        $query = $request->user()
             ->appointments()
             ->where('pet_id', $data['pet_id'])
-            ->where('status', 'Scheduled')
-            ->when($current, fn ($query) => $query->where('id', '!=', $current->id))
-            ->get(['id', 'appointment_date', 'appointment_time']);
-
-        //normalize time because sqlite and postgresql return different formats
-        $duplicateExists = $scheduledVisits->contains(
-            fn (Appointment $appointment) =>
-                $appointment->appointment_date->format('Y-m-d') === $data['appointment_date']
-                && substr((string) $appointment->appointment_time, 0, 5) === substr($data['appointment_time'], 0, 5)
-        );
-
-        if ($duplicateExists)
+            ->where('status', 'Scheduled');
+        if ($current !== null)
         {
-            throw ValidationException::withMessages([
-                'appointment_time' => 'This pet already has an appointment at that date and time.',
-            ]);
+            $query->where('id', '!=', $current->id);
+        }
+        $scheduledVisits = $query->get(['id', 'appointment_date', 'appointment_time']);
+
+        foreach ($scheduledVisits as $visit)
+        {
+            //compare HH:MM only, because sqlite and postgresql return the time in different formats
+            $sameDate = $visit->appointment_date->format('Y-m-d') === $data['appointment_date'];
+            $sameTime = substr((string) $visit->appointment_time, 0, 5) === substr($data['appointment_time'], 0, 5);
+            if ($sameDate && $sameTime)
+            {
+                throw ValidationException::withMessages([
+                    'appointment_time' => 'This pet already has an appointment at that date and time.',
+                ]);
+            }
         }
     }
 
-    //hide visits owned by another account
-    private function owned(Request $request, Appointment $appointment): void
+    //stop with 404 when the appointment belongs to another owner
+    private function checkOwner(Request $request, Appointment $appointment): void
     {
-        abort_unless($appointment->user_id === $request->user()->id, 404);
+        if ($appointment->user_id !== $request->user()->id)
+        {
+            abort(404);
+        }
     }
 }

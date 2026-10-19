@@ -4,12 +4,16 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+//creates the health tables: vaccine list, veterinarians, vaccinations, medical records and appointments
+//each health record belongs to one pet (pet_id); deleting the pet deletes its health records
 return new class extends Migration
 {
-    //create the health catalogue, records and appointment tables
+    //3.process
+
+    //create the health tables
     public function up(): void
     {
-        //store the vaccine catalogue
+        //the list of known vaccines, for example "Rabies" for "Dog", repeated every 12 months
         Schema::create('vaccinations', function (Blueprint $table)
         {
             $table->id();
@@ -18,10 +22,10 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->unsignedSmallInteger('recommended_interval_months')->nullable();
             $table->timestamps();
-            $table->unique(['name', 'species']);
+            $table->unique(['name', 'species']);                  //the same vaccine cannot be listed twice
         });
 
-        //store veterinarian contact details
+        //veterinarian contact details
         Schema::create('veterinarians', function (Blueprint $table)
         {
             $table->id();
@@ -33,26 +37,29 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        //store completed and upcoming vaccination details for each pet
+        //one row per vaccine dose, given or due
         Schema::create('vaccination_records', function (Blueprint $table)
         {
             $table->id();
+            //FK to pets.id; deleting the pet deletes this record
             $table->foreignId('pet_id')->constrained()->cascadeOnDelete();
+            //optional FK to the vaccine list
             $table->foreignId('vaccination_id')->nullable()->constrained()->nullOnDelete();
             $table->string('vaccine_name', 150);
-            $table->date('administered_date')->nullable();
+            $table->date('administered_date')->nullable();        //empty when not given yet
             $table->date('due_date');
             $table->string('clinic', 150)->nullable();
-            $table->string('status', 20)->default('Upcoming');
+            $table->string('status', 20)->default('Upcoming');    //Upcoming, Completed or Overdue
             $table->text('notes')->nullable();
             $table->timestamps();
-            $table->index(['pet_id', 'due_date']);
+            $table->index(['pet_id', 'due_date']);                //makes "due soon" lists fast
         });
 
-        //store the pet medical history
+        //one row per clinic visit outcome
         Schema::create('medical_records', function (Blueprint $table)
         {
             $table->id();
+            //FK to pets.id; deleting the pet deletes this record
             $table->foreignId('pet_id')->constrained()->cascadeOnDelete();
             $table->foreignId('veterinarian_id')->nullable()->constrained()->nullOnDelete();
             $table->date('visit_date');
@@ -64,10 +71,11 @@ return new class extends Migration
             $table->index(['pet_id', 'visit_date']);
         });
 
-        //store appointment schedules for each owner and pet
+        //one row per clinic visit booked by an owner for a pet
         Schema::create('appointments', function (Blueprint $table)
         {
             $table->id();
+            //an appointment links to both the owner and the pet
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('pet_id')->constrained()->cascadeOnDelete();
             $table->foreignId('veterinarian_id')->nullable()->constrained()->nullOnDelete();
@@ -75,14 +83,14 @@ return new class extends Migration
             $table->time('appointment_time');
             $table->string('clinic', 150)->nullable();
             $table->string('reason', 500);
-            $table->string('status', 20)->default('Scheduled');
+            $table->string('status', 20)->default('Scheduled');   //Scheduled, Completed or Cancelled
             $table->text('notes')->nullable();
             $table->timestamps();
             $table->index(['user_id', 'appointment_date']);
         });
     }
 
-    //remove the health tables in reverse dependency order
+    //remove the health tables, last created first
     public function down(): void
     {
         Schema::dropIfExists('appointments');

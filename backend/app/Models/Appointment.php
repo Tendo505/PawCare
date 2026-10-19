@@ -4,8 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+//one clinic visit booked by an owner for a pet (table: appointments)
 class Appointment extends Model
 {
+    //1.setup
+
     //appointment fields that can be saved
     protected $fillable = [
         'user_id',
@@ -24,6 +27,8 @@ class Appointment extends Model
     {
         return ['appointment_date' => 'date:Y-m-d'];
     }
+
+    //4.output
 
     //get the owner who arranged the appointment
     public function user()

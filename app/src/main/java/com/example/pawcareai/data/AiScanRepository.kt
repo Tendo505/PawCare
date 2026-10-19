@@ -2,35 +2,42 @@ package com.example.pawcareai.data
 
 import com.example.pawcareai.network.ApiAiPrediction
 import com.example.pawcareai.network.PawCareApi
+import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 
-//breed scans uploaded to laravel and their saved history
+//uploads a pet photo to laravel, which asks the ai service for the breed and saves the result
 class AiScanRepository(
     private val api: PawCareApi,
-    private val petName: (Long) -> String
+    private val cache: RecordCache
 )
 {
-    //temporary screen data loaded through laravel
-    private var predictionCache: List<BreedPrediction> = emptyList()
-
     //2.input
 
-    //prepare the photo and optional pet as multipart form parts
-    private fun imagePart(imageBytes: ByteArray, mimeType: String, fileName: String): MultipartBody.Part
+    //put the photo into the "image" field of a multipart form, like a file upload on a website
+    private fun createImagePart(imageBytes: ByteArray, mimeType: String, fileName: String): MultipartBody.Part
     {
-        val imageBody: RequestBody = imageBytes.toRequestBody(mimeType.toMediaType())
+        val imageType: MediaType = mimeType.toMediaType()
+        val imageBody: RequestBody = imageBytes.toRequestBody(imageType)
         return MultipartBody.Part.createFormData("image", fileName, imageBody)
+    }
+
+    //put the linked pet id into the "pet_id" field, or send nothing when no pet is linked
+    private fun createPetPart(petId: Long?): RequestBody?
+    {
+        if (petId == null)
+        {
+            return null
+        }
+        val textType: MediaType = "text/plain".toMediaType()
+        return petId.toString().toRequestBody(textType)
     }
 
     //3.process
 
-    //upload a photo and cache its saved prediction
+    //upload the photo (POST ai-predictions) and add the saved result to the history
     fun analyzeBreed(
         imageBytes: ByteArray,
         mimeType: String,
@@ -39,77 +46,41 @@ class AiScanRepository(
         onResult: (Result<BreedPrediction>) -> Unit
     )
     {
-        val petPart: RequestBody? = petId?.toString()?.toRequestBody("text/plain".toMediaType())
+        val imagePart: MultipartBody.Part = createImagePart(imageBytes, mimeType, fileName)
+        val petPart: RequestBody? = createPetPart(petId)
 
-        api.createAiPrediction(imagePart(imageBytes, mimeType, fileName), petPart).enqueue(object : Callback<ApiAiPrediction>
+        api.createAiPrediction(imagePart, petPart).enqueue(ApiCallback<ApiAiPrediction>(
+            onSuccess = { apiPrediction ->
+                val prediction: BreedPrediction = RecordConverter.toBreedPrediction(apiPrediction, cache)
+                putInCache(prediction)
+                onResult(Result.success(prediction))
+            },
+            onFailure = { error ->
+                onResult(Result.failure(error))
+            },
+            breedRecognition = true
+        ))
+    }
+
+    //replace the scan with the same id, or add it at the end when it is new
+    private fun putInCache(prediction: BreedPrediction)
+    {
+        for (index in cache.predictions.indices)
         {
-            override fun onResponse(call: Call<ApiAiPrediction>, response: Response<ApiAiPrediction>)
+            if (cache.predictions[index].id == prediction.id)
             {
-                val prediction: ApiAiPrediction? = response.body()
-                if (response.isSuccessful && prediction != null)
-                {
-                    onResult(Result.success(cachePrediction(prediction)))
-                }
-                else
-                {
-                    onResult(Result.failure(response.aiFailure()))
-                }
+                cache.predictions[index] = prediction
+                return
             }
-
-            override fun onFailure(call: Call<ApiAiPrediction>, throwable: Throwable)
-            {
-                onResult(Result.failure(throwable))
-            }
-        })
-    }
-
-    //convert a new prediction and keep it in the history cache
-    private fun cachePrediction(prediction: ApiAiPrediction): BreedPrediction
-    {
-        val savedPrediction: BreedPrediction = prediction.toBreedPrediction()
-        predictionCache = predictionCache.replaceOrAdd(savedPrediction) { cachedPrediction ->
-            cachedPrediction.id
         }
-        return savedPrediction
-    }
-
-    //replace cached predictions after a full refresh
-    fun replaceCache(predictions: List<ApiAiPrediction>)
-    {
-        predictionCache = predictions.map { prediction -> prediction.toBreedPrediction() }
-    }
-
-    //remove predictions belonging to a cleared session
-    fun clearCache()
-    {
-        predictionCache = emptyList()
+        cache.predictions.add(prediction)
     }
 
     //4.output
 
-    //read the latest predictions first
+    //read the newest scans first
     fun predictions(): List<BreedPrediction>
     {
-        return predictionCache.sortedByDescending { prediction -> prediction.createdAt }
-    }
-
-    //convert a saved api prediction for the app
-    private fun ApiAiPrediction.toBreedPrediction(): BreedPrediction
-    {
-        return BreedPrediction(
-            id = id,
-            petId = petId,
-            petName = pet?.name ?: petId?.let(petName).orEmpty(),
-            species = species,
-            breed = breed,
-            confidence = confidence,
-            createdAt = createdAt,
-            imageUrl = imageUrl.orEmpty(),
-            modelVersion = modelVersion,
-            topPredictions = topPredictions.map { prediction ->
-                BreedPredictionOption(prediction.breed, prediction.confidence)
-            },
-            disclaimer = disclaimer
-        )
+        return cache.predictions.sortedByDescending { prediction -> prediction.createdAt }
     }
 }

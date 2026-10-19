@@ -3,13 +3,13 @@
 use App\Services\SystemHealthService;
 use Illuminate\Support\Facades\Artisan;
 
-// Display the backend information
+//php artisan pawcare:about - display the backend information
 Artisan::command('pawcare:about', function ()
 {
     $this->info('PawCare AI backend is ready.');
 })->purpose('Display the PawCare API status');
 
-// Check service connections without changing records
+//php artisan pawcare:integration-check - check every service without changing records
 Artisan::command('pawcare:integration-check', function ()
 {
     $result = app(SystemHealthService::class)->check();

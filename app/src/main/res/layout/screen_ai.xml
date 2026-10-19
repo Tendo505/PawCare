@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--screen structure; DashboardActivity supplies account data and button actions-->
+<!--AI Scan tab. AiScanScreen.kt connects the buttons and fills the result and history-->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -12,6 +12,7 @@
     android:paddingEnd="20dp"
     android:paddingBottom="32dp"
     tools:context=".DashboardActivity">
+    <!--heading and short description-->
     <TextView
         android:id="@+id/aiTitle"
         android:layout_width="match_parent"
@@ -31,6 +32,7 @@
         android:textColor="@color/paw_muted"
         android:lineSpacingMultiplier="1.1"
         android:layout_marginTop="4dp" />
+    <!--"Link to a pet" button opens the pet list pop-up-->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/aiLinkedPet"
         android:layout_width="match_parent"
@@ -38,6 +40,7 @@
         android:text="Link to a pet (optional)"
         app:cornerRadius="14dp"
         android:layout_marginTop="18dp" />
+    <!--photo area: the camera placeholder until a photo is chosen, then the photo-->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/aiPreview"
         android:layout_width="match_parent"
@@ -95,6 +98,7 @@
             android:scaleType="centerCrop"
             android:visibility="gone" />
     </com.google.android.material.card.MaterialCardView>
+    <!--"Choose photo" opens the phone photo picker; "Analyze breed" sends it to Laravel-->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/aiChoosePhoto"
         android:layout_width="match_parent"
@@ -109,6 +113,7 @@
         android:text="Analyze breed"
         app:cornerRadius="14dp"
         android:layout_marginTop="10dp" />
+    <!--spinner shown while the photo is being analysed-->
     <LinearLayout
         android:id="@+id/aiProgress"
         android:layout_width="match_parent"
@@ -130,11 +135,13 @@
             android:lineSpacingMultiplier="1.1"
             android:layout_marginLeft="12dp" />
     </LinearLayout>
+    <!--the result card or the error card is added here-->
     <LinearLayout
         android:id="@+id/aiFeedback"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical" />
+    <!--reminder that the result is only an estimate-->
     <TextView
         android:id="@+id/aiDisclaimer"
         android:layout_width="match_parent"
@@ -145,6 +152,7 @@
         android:textColor="@color/paw_muted"
         android:lineSpacingMultiplier="1.1"
         android:layout_marginTop="18dp" />
+    <!--the five newest saved scans are added into aiHistory-->
     <TextView
         android:id="@+id/aiHistoryTitle"
         android:layout_width="match_parent"

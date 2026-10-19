@@ -5,60 +5,65 @@ import android.content.SharedPreferences
 import com.example.pawcareai.network.NetworkModule
 import com.example.pawcareai.network.PawCareApi
 
-//the one shared place for the saved token, signed-in account and api connection
+//the one shared place for the login token, the signed-in account and the api connection
 class ApiSession(context: Context)
 {
-    //authentication settings and api connection
-    private val preferences: SharedPreferences = context.applicationContext
-        .getSharedPreferences(AUTH_PREFERENCES, Context.MODE_PRIVATE)
+    //the phone storage that keeps the token after the app is closed
+    private val preferences: SharedPreferences = context.applicationContext.getSharedPreferences("pawcare_auth", Context.MODE_PRIVATE)
+
+    //the retrofit api used by every repository
     val api: PawCareApi = NetworkModule.backend
 
-    //account returned by laravel for the current session
+    //the account returned by laravel, or null when nobody is signed in
     var activeUser: UserAccount? = null
 
     //1.screen setup
 
     init
     {
-        NetworkModule.setAuthToken(preferences.getString(KEY_TOKEN, null))
+        //send the saved token with every request from the start
+        val savedToken: String? = preferences.getString(TOKEN_KEY, null)
+        NetworkModule.setAuthToken(savedToken)
     }
 
     //3.process
 
-    //check whether an authentication token has been saved
-    val hasSession: Boolean
-        get()
+    //check whether a login token has been saved on this phone
+    fun hasSession(): Boolean
+    {
+        val savedToken: String? = preferences.getString(TOKEN_KEY, null)
+        if (savedToken == null || savedToken.isBlank())
         {
-            val token: String? = preferences.getString(KEY_TOKEN, null)
-            return !token.isNullOrBlank()
+            return false
         }
+        return true
+    }
 
-    //save the session token and active account
+    //remember the token and the account after logging in or registering
     fun saveToken(token: String, user: UserAccount)
     {
-        val sessionEditor: SharedPreferences.Editor = preferences.edit()
-        sessionEditor.putString(KEY_TOKEN, token)
-        sessionEditor.apply()
+        val editor: SharedPreferences.Editor = preferences.edit()
+        editor.putString(TOKEN_KEY, token)
+        editor.apply()
 
         NetworkModule.setAuthToken(token)
         activeUser = user
     }
 
-    //remove the token and the active account
+    //forget the token and the account after logging out or when the token has expired
     fun clearToken()
     {
-        val sessionEditor: SharedPreferences.Editor = preferences.edit()
-        sessionEditor.remove(KEY_TOKEN)
-        sessionEditor.apply()
+        val editor: SharedPreferences.Editor = preferences.edit()
+        editor.remove(TOKEN_KEY)
+        editor.apply()
 
         NetworkModule.setAuthToken(null)
         activeUser = null
     }
 
-    //preference names used by the authentication session
+    //the name the token is saved under
     companion object
     {
-        private const val AUTH_PREFERENCES = "pawcare_auth"
-        private const val KEY_TOKEN = "sanctum_token"
+        private const val TOKEN_KEY = "sanctum_token"
     }
 }

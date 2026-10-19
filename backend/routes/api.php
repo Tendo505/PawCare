@@ -10,6 +10,9 @@ use App\Http\Controllers\SystemHealthController;
 use App\Http\Controllers\VaccinationController;
 use Illuminate\Support\Facades\Route;
 
+//every address the android app calls, all starting with /api
+//"throttle:10,1" means at most 10 requests per minute from one device
+
 //read service availability without exposing owner records
 Route::get('/health', SystemHealthController::class)->middleware('throttle:30,1');
 
@@ -39,4 +42,7 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function ()
 });
 
 //return JSON for an unknown API address
-Route::fallback(fn () => response()->json(['message' => 'API endpoint not found.'], 404));
+Route::fallback(function ()
+{
+    return response()->json(['message' => 'API endpoint not found.'], 404);
+});

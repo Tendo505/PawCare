@@ -1,185 +1,286 @@
 package com.example.pawcareai.dashboard
 
+import android.graphics.Bitmap
 import android.net.Uri
 import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
 import com.example.pawcareai.R
 import com.example.pawcareai.data.BreedPrediction
+import com.example.pawcareai.data.Pet
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
-//the ai scan tab: photo selection, analysis feedback and saved predictions
-class AiScanScreen(
-    private val page: DashboardPage,
-    private val choosePhoto: () -> Unit
-)
+//the AI Scan tab (layout: screen_ai.xml): pick a photo, optionally link a pet with the pop-up list,
+//analyze, then see the result and the history
+class AiScanScreen(private val page: DashboardPage)
 {
-    private val context = page.activity
-    private val photoReader = PhotoReader(context.contentResolver)
+    private val photoReader: PhotoReader = PhotoReader(page.dashboard.contentResolver)
+    private val predictionCards: PredictionCards = PredictionCards(page)
 
-    //active scan state
-    private var selectedImageUri: Uri? = null
-    private var selectedAiPetId: Long? = null
-    private var aiResult: BreedPrediction? = null
-    private var aiError: String? = null
-    private var aiLoading: Boolean = false
+    //what the screen remembers between redraws
+    private var selectedPhoto: Uri? = null
+    private var linkedPetId: Long? = null
+    private var latestResult: BreedPrediction? = null
+    private var errorMessage: String? = null
+    private var isAnalyzing: Boolean = false
 
     //1.screen setup
 
-    //display photo selection, analysis feedback and saved predictions
+    //draw the ai scan screen from the values above
     fun render()
     {
-        page.setTitle(context.getString(R.string.title_ai))
-        val root = page.inflate(R.layout.screen_ai)
-        keepLinkedPetValid()
-        bindButtons(root)
-        bindImagePreview(root)
-        root.findViewById<View>(R.id.aiProgress).visibility = if (aiLoading) View.VISIBLE else View.GONE
-        showFeedback(root.findViewById(R.id.aiFeedback))
+        page.setTitle(R.string.title_ai)
+        val root: LinearLayout = page.inflate(R.layout.screen_ai)
+        checkLinkedPet()
+        setButtons(root)
+        showPhotoPreview(root)
+
+        val progress: View = root.findViewById(R.id.aiProgress)
+        if (isAnalyzing)
+        {
+            progress.visibility = View.VISIBLE
+        }
+        else
+        {
+            progress.visibility = View.GONE
+        }
+
+        showResultOrError(root.findViewById(R.id.aiFeedback))
         showHistory(root.findViewById(R.id.aiHistory))
         page.show(root)
     }
 
     //2.input
 
-    //select a photo and clear the previous scan result
-    fun onPhotoSelected(uri: Uri)
+    //called by the dashboard after the user picks a photo; the old result is cleared
+    fun onPhotoSelected(photo: Uri)
     {
-        selectedImageUri = uri
-        aiResult = null
-        aiError = null
+        selectedPhoto = photo
+        latestResult = null
+        errorMessage = null
         render()
     }
 
-    //link a new prediction to a selected pet profile
-    private fun choosePredictionPet()
+    //the "Link to a pet" pop-up list; the next scan is saved for the chosen pet
+    private fun choosePet()
     {
-        val pets = page.repository.pets()
-        val petOptions: List<String> = listOf(context.getString(R.string.ai_do_not_link)) + pets.map { pet -> pet.name }
-        val petDialog = MaterialAlertDialogBuilder(context)
-        petDialog.setTitle(R.string.ai_link_pet_title)
-        petDialog.setItems(petOptions.toTypedArray()) { _, position ->
-            selectedAiPetId = if (position == 0) null else pets[position - 1].id
+        val pets: List<Pet> = page.repository.pets()
+        val choices: MutableList<String> = mutableListOf()
+        choices.add(page.dashboard.getString(R.string.ai_do_not_link))
+        for (pet in pets)
+        {
+            choices.add(pet.name)
+        }
+
+        val builder: MaterialAlertDialogBuilder = MaterialAlertDialogBuilder(page.dashboard)
+        builder.setTitle(R.string.ai_link_pet_title)
+        builder.setItems(choices.toTypedArray()) { dialog, position ->
+            //position 0 is "Do not link to a pet"; position 1 is the first pet
+            if (position == 0)
+            {
+                linkedPetId = null
+            }
+            else
+            {
+                linkedPetId = pets[position - 1].id
+            }
             render()
         }
-        petDialog.setNegativeButton(R.string.action_cancel, null)
-        petDialog.show()
+        builder.setNegativeButton(R.string.action_cancel, null)
+        builder.show()
     }
 
     //3.process
 
-    //forget a deleted pet, and pick the only pet automatically
-    private fun keepLinkedPetValid()
+    //forget a linked pet that was deleted; with exactly one pet, link it automatically
+    private fun checkLinkedPet()
     {
-        val pets = page.repository.pets()
-        val currentPetId = selectedAiPetId
+        val currentPetId: Long? = linkedPetId
         if (currentPetId != null && page.repository.pet(currentPetId) == null)
         {
-            selectedAiPetId = null
+            linkedPetId = null
         }
-        if (selectedAiPetId == null && pets.size == 1)
+        val pets: List<Pet> = page.repository.pets()
+        if (linkedPetId == null && pets.size == 1)
         {
-            selectedAiPetId = pets.first().id
+            linkedPetId = pets[0].id
         }
     }
 
-    //validate the photo and request breed analysis through laravel
-    private fun analyzeImage()
+    //check the photo, then upload it to laravel (POST ai-predictions)
+    private fun analyzePhoto()
     {
-        val uri = selectedImageUri ?: return
-        val bytes: ByteArray? = photoReader.readBytes(uri)
+        val photo: Uri? = selectedPhoto
+        if (photo == null)
+        {
+            return
+        }
+
+        val bytes: ByteArray? = photoReader.readBytes(photo)
         if (bytes == null)
         {
-            return showError(context.getString(R.string.ai_error_unreadable))
+            showError(page.dashboard.getString(R.string.ai_error_unreadable))
+            return
         }
         if (bytes.size > photoReader.uploadLimit)
         {
-            return showError(context.getString(R.string.ai_error_too_large))
+            showError(page.dashboard.getString(R.string.ai_error_too_large))
+            return
         }
-        val mime = photoReader.mimeType(uri)
-        val extension = photoReader.extensionFor(mime) ?: return showError(context.getString(R.string.ai_error_type))
-        aiLoading = true
-        aiError = null
+        val mimeType: String = photoReader.mimeType(photo)
+        val extension: String? = photoReader.extensionFor(mimeType)
+        if (extension == null)
+        {
+            showError(page.dashboard.getString(R.string.ai_error_type))
+            return
+        }
+
+        //show the spinner and disable the buttons while laravel and the ai service work
+        isAnalyzing = true
+        errorMessage = null
         render()
-        page.repository.analyzeBreed(bytes, mime, "pet-photo.$extension", selectedAiPetId, ::showAnalysisResult)
+        page.repository.analyzeBreed(bytes, mimeType, "pet-photo.$extension", linkedPetId) { result ->
+            isAnalyzing = false
+            if (result.isSuccess)
+            {
+                latestResult = result.getOrNull()
+            }
+            else
+            {
+                errorMessage = readErrorMessage(result.exceptionOrNull())
+            }
+            //the user may have moved to another tab while waiting
+            if (page.isTabSelected(R.id.nav_ai))
+            {
+                render()
+            }
+        }
+    }
+
+    //the message from laravel, or a general message when there is none
+    private fun readErrorMessage(error: Throwable?): String
+    {
+        if (error != null)
+        {
+            val message: String? = error.localizedMessage
+            if (message != null)
+            {
+                return message
+            }
+        }
+        return page.dashboard.getString(R.string.ai_error_generic)
     }
 
     //4.output
 
-    //keep the result and redraw only if the ai tab is still on screen
-    private fun showAnalysisResult(result: Result<BreedPrediction>)
-    {
-        aiLoading = false
-        result.onSuccess { prediction -> aiResult = prediction }
-            .onFailure { error ->
-                aiError = error.localizedMessage ?: context.getString(R.string.ai_error_generic)
-            }
-        if (page.isShowing(R.id.nav_ai))
-        {
-            render()
-        }
-    }
-
-    //show a photo problem on the screen
+    //show a problem with the photo below the buttons
     private fun showError(message: String)
     {
-        aiError = message
+        errorMessage = message
         render()
     }
 
-    //set the text and state of the pet, photo and analyze buttons
-    private fun bindButtons(root: LinearLayout)
+    //set the text of each button, and disable them while a scan is running
+    private fun setButtons(root: LinearLayout)
     {
-        val linkedPet = selectedAiPetId?.let(page.repository::pet)
-        val linkedPetButton = root.findViewById<MaterialButton>(R.id.aiLinkedPet)
-        linkedPetButton.text = linkedPet?.let { pet -> context.getString(R.string.ai_linked_pet, pet.name) }
-            ?: context.getString(R.string.ai_link_pet_optional)
-        linkedPetButton.isEnabled = !aiLoading
-        linkedPetButton.setOnClickListener { choosePredictionPet() }
-
-        val choosePhotoButton = root.findViewById<MaterialButton>(R.id.aiChoosePhoto)
-        choosePhotoButton.text = context.getString(if (selectedImageUri == null) R.string.ai_choose_photo else R.string.ai_choose_another_photo)
-        choosePhotoButton.isEnabled = !aiLoading
-        choosePhotoButton.setOnClickListener { choosePhoto() }
-        val analyzeButton = root.findViewById<MaterialButton>(R.id.aiAnalyze)
-        analyzeButton.isEnabled = selectedImageUri != null && !aiLoading
-        analyzeButton.setOnClickListener { analyzeImage() }
-    }
-
-    //show the selected photo in place of the placeholder
-    private fun bindImagePreview(root: View)
-    {
-        val uri = selectedImageUri ?: return
-        val bitmap = photoReader.previewBitmap(uri) ?: return
-        val photo = root.findViewById<ImageView>(R.id.aiPhoto)
-        photo.setImageBitmap(bitmap)
-        photo.visibility = View.VISIBLE
-        root.findViewById<View>(R.id.aiPlaceholder).visibility = View.GONE
-    }
-
-    //show the latest result or error
-    private fun showFeedback(feedback: LinearLayout)
-    {
-        aiResult?.let { result -> feedback.addView(context.predictionResultCard(result).withTopMargin(18)) }
-        aiError?.let { message ->
-            feedback.addView(context.emptyCard(context.getString(R.string.ai_error_title), message).withTopMargin(18))
+        val linkPetButton: MaterialButton = root.findViewById(R.id.aiLinkedPet)
+        linkPetButton.text = linkButtonText()
+        linkPetButton.isEnabled = !isAnalyzing
+        linkPetButton.setOnClickListener {
+            choosePet()
         }
-    }
 
-    //show the five latest saved predictions
-    private fun showHistory(historyList: LinearLayout)
-    {
-        val history = page.repository.predictions()
-        if (history.isEmpty())
+        val choosePhotoButton: MaterialButton = root.findViewById(R.id.aiChoosePhoto)
+        if (selectedPhoto == null)
         {
-            val emptyTitle = context.getString(R.string.ai_history_empty_title)
-            val emptyMessage = context.getString(R.string.ai_history_empty_message)
-            historyList.addView(context.emptyCard(emptyTitle, emptyMessage).withTopMargin(10))
+            choosePhotoButton.text = page.dashboard.getString(R.string.ai_choose_photo)
         }
         else
         {
-            history.take(5).forEach { prediction -> historyList.addView(context.predictionCard(prediction).withTopMargin(10)) }
+            choosePhotoButton.text = page.dashboard.getString(R.string.ai_choose_another_photo)
+        }
+        choosePhotoButton.isEnabled = !isAnalyzing
+        choosePhotoButton.setOnClickListener {
+            page.dashboard.choosePhoto()
+        }
+
+        val analyzeButton: MaterialButton = root.findViewById(R.id.aiAnalyze)
+        analyzeButton.isEnabled = selectedPhoto != null && !isAnalyzing
+        analyzeButton.setOnClickListener {
+            analyzePhoto()
+        }
+    }
+
+    //"Linked pet: Milo", or "Link to a pet (optional)"
+    private fun linkButtonText(): String
+    {
+        val currentPetId: Long? = linkedPetId
+        if (currentPetId != null)
+        {
+            val pet: Pet? = page.repository.pet(currentPetId)
+            if (pet != null)
+            {
+                return page.dashboard.getString(R.string.ai_linked_pet, pet.name)
+            }
+        }
+        return page.dashboard.getString(R.string.ai_link_pet_optional)
+    }
+
+    //replace the placeholder with the chosen photo
+    private fun showPhotoPreview(root: LinearLayout)
+    {
+        val photo: Uri? = selectedPhoto
+        if (photo == null)
+        {
+            return
+        }
+        val bitmap: Bitmap? = photoReader.previewBitmap(photo)
+        if (bitmap == null)
+        {
+            return
+        }
+        val photoView: ImageView = root.findViewById(R.id.aiPhoto)
+        photoView.setImageBitmap(bitmap)
+        photoView.visibility = View.VISIBLE
+        root.findViewById<View>(R.id.aiPlaceholder).visibility = View.GONE
+    }
+
+    //the result card after a successful scan, or the error card after a failed one
+    private fun showResultOrError(container: LinearLayout)
+    {
+        val result: BreedPrediction? = latestResult
+        if (result != null)
+        {
+            page.views.addWithTopMargin(container, predictionCards.resultCard(result), 18)
+        }
+        val message: String? = errorMessage
+        if (message != null)
+        {
+            val title: String = page.dashboard.getString(R.string.ai_error_title)
+            page.views.addWithTopMargin(container, page.views.messageCard(title, message), 18)
+        }
+    }
+
+    //the five newest saved scans
+    private fun showHistory(container: LinearLayout)
+    {
+        val history: List<BreedPrediction> = page.repository.predictions()
+        if (history.isEmpty())
+        {
+            val title: String = page.dashboard.getString(R.string.ai_history_empty_title)
+            val message: String = page.dashboard.getString(R.string.ai_history_empty_message)
+            page.views.addWithTopMargin(container, page.views.messageCard(title, message), 10)
+            return
+        }
+        var shown: Int = 0
+        for (prediction in history)
+        {
+            if (shown < 5)
+            {
+                page.views.addWithTopMargin(container, predictionCards.historyCard(prediction), 10)
+                shown = shown + 1
+            }
         }
     }
 }

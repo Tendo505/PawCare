@@ -6,58 +6,84 @@ use App\Models\MedicalRecord;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+//medical visit records: GET, POST, PUT and DELETE /api/medical-records
 class MedicalRecordController extends Controller
 {
-    //read medical records for the owner's pets, newest visits first
+    //GET /api/medical-records - medical records for the owner's pets, newest visit first
     public function index(Request $request): JsonResponse
     {
-        return response()->json(
-            MedicalRecord::whereHas('pet', fn ($q) => $q->where('user_id', $request->user()->id))
-                ->with('pet:id,name,species')
-                ->orderByDesc('visit_date')
-                ->get()
-        );
+        //3.process: a medical record has no user_id, so keep only records whose pet belongs to this owner
+        $ownerId = $request->user()->id;
+        $records = MedicalRecord::whereHas('pet', function ($petQuery) use ($ownerId)
+        {
+            $petQuery->where('user_id', $ownerId);
+        })
+            ->with('pet:id,name,species')
+            ->orderByDesc('visit_date')
+            ->get();
+
+        //4.output
+        return response()->json($records);
     }
 
-    //create a medical record for an owned pet
+    //POST /api/medical-records - add a visit record to one of the owner's pets
     public function store(Request $request): JsonResponse
     {
-        $data = $this->validated($request);
-        $this->ownedPet($request, (int) $data['pet_id']);
+        //2.input
+        $data = $this->validateMedicalRecord($request);
 
-        return response()->json(MedicalRecord::create($data)->load('pet:id,name'), 201);
+        //3.process
+        $this->ownedPet($request, (int) $data['pet_id']);
+        $record = MedicalRecord::create($data);
+        $record->load('pet:id,name');
+
+        //4.output
+        return response()->json($record, 201);
     }
 
-    //read one medical record and its pet details
+    //GET /api/medical-records/{id} - one medical record
     public function show(Request $request, MedicalRecord $medicalRecord): JsonResponse
     {
-        $this->owned($request, $medicalRecord);
+        //3.process
+        $this->checkOwner($request, $medicalRecord);
+        $medicalRecord->load('pet:id,name');
 
-        return response()->json($medicalRecord->load('pet:id,name'));
+        //4.output
+        return response()->json($medicalRecord);
     }
 
-    //update a medical record after checking its owner and fields
+    //PUT /api/medical-records/{id} - update a medical record
     public function update(Request $request, MedicalRecord $medicalRecord): JsonResponse
     {
-        $this->owned($request, $medicalRecord);
-        $data = $this->validated($request);
+        //3.process: check the owner before reading the new details
+        $this->checkOwner($request, $medicalRecord);
+
+        //2.input
+        $data = $this->validateMedicalRecord($request);
+
+        //3.process: the record may also be moved to another pet of the same owner
         $this->ownedPet($request, (int) $data['pet_id']);
         $medicalRecord->update($data);
 
+        //4.output
         return response()->json($medicalRecord->fresh()->load('pet:id,name'));
     }
 
-    //delete the selected medical record
+    //DELETE /api/medical-records/{id} - delete a medical record
     public function destroy(Request $request, MedicalRecord $medicalRecord): JsonResponse
     {
-        $this->owned($request, $medicalRecord);
+        //3.process
+        $this->checkOwner($request, $medicalRecord);
         $medicalRecord->delete();
 
+        //4.output
         return response()->json(null, 204);
     }
 
-    //validate medical details and prevent future visit dates
-    private function validated(Request $request): array
+    //2.input
+
+    //the rules for a medical record form; a visit cannot be in the future
+    private function validateMedicalRecord(Request $request): array
     {
         return $request->validate([
             'pet_id' => ['required', 'integer', 'exists:pets,id'],
@@ -70,9 +96,15 @@ class MedicalRecordController extends Controller
         ]);
     }
 
-    //hide records owned by another account
-    private function owned(Request $request, MedicalRecord $item): void
+    //3.process
+
+    //stop with 404 when the record's pet belongs to another owner
+    private function checkOwner(Request $request, MedicalRecord $record): void
     {
-        abort_unless($item->pet()->where('user_id', $request->user()->id)->exists(), 404);
+        $ownsPet = $record->pet()->where('user_id', $request->user()->id)->exists();
+        if (! $ownsPet)
+        {
+            abort(404);
+        }
     }
 }

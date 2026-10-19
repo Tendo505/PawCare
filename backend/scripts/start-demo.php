@@ -3,7 +3,7 @@
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Artisan;
 
-//1.load fresh settings without deleting the running application's cache
+//2.input: load fresh settings without deleting the running application's cache
 $root = dirname(__DIR__);
 chdir($root);
 $cachePath = sys_get_temp_dir().'/pawcare-demo-config-'.bin2hex(random_bytes(12)).'.php';
@@ -16,7 +16,7 @@ $app->make(Kernel::class)->bootstrap();
 
 try
 {
-    //2.allow only this project's dedicated SQLite demo file
+    //3.process: allow only this project's dedicated SQLite demo file
     if (config('database.default') !== 'sqlite' || env('DB_URL') || config('database.connections.sqlite.url'))
     {
         throw new RuntimeException('Refusing to reset: select DB_CONNECTION=sqlite, remove DB_URL, and use only backend/database/database.sqlite. Existing PostgreSQL data and .env were not changed.');
@@ -26,8 +26,16 @@ try
     $directory = realpath($root.'/database');
     $expected = str_replace('\\', '/', realpath($root)).'/database/database.sqlite';
     $configured = $connection->getConfig('database');
-    $configuredDirectory = is_string($configured) ? realpath(dirname($configured)) : false;
-    $resolved = $configuredDirectory === false ? '' : str_replace('\\', '/', $configuredDirectory).'/'.basename($configured);
+    $configuredDirectory = false;
+    if (is_string($configured))
+    {
+        $configuredDirectory = realpath(dirname($configured));
+    }
+    $resolved = '';
+    if ($configuredDirectory !== false)
+    {
+        $resolved = str_replace('\\', '/', $configuredDirectory).'/'.basename($configured);
+    }
 
     if (config('database.default') !== 'sqlite'
         || $connection->getDriverName() !== 'sqlite'
@@ -45,7 +53,7 @@ try
         throw new RuntimeException('Refusing to reset a production environment. This command is for a local demonstration only.');
     }
 
-    //3.create missing demo prerequisites without replacing existing files
+    //3.process: create missing demo prerequisites without replacing existing files
     if (! file_exists($expected))
     {
         $file = fopen($expected, 'x');
@@ -64,7 +72,7 @@ try
         }
     }
 
-    //4.reset and seed the guarded connection in the same application process
+    //3.process: reset and seed the guarded connection in the same application process
     echo "Resetting only backend/database/database.sqlite with fictional demo records.\n";
     $result = Artisan::call('migrate:fresh', ['--database' => 'sqlite', '--seed' => true, '--force' => true]);
     echo Artisan::output();
@@ -73,7 +81,7 @@ try
         throw new RuntimeException('The guarded SQLite migration or seeder failed.');
     }
 
-    //5.show the local demonstration checklist
+    //4.output: show the local demonstration checklist
     echo "\nDemo ready. Existing cached settings were not cleared.\n";
     echo "[ ] If you intentionally changed .env, run php artisan config:clear before using Herd.\n";
     echo "[ ] Open http://pawcare-api.test/api/health\n";

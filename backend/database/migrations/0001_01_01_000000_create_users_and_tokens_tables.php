@@ -4,24 +4,29 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+//a migration describes database tables in php; "php artisan migrate" runs up() to create them
+//and "php artisan migrate:rollback" runs down() to remove them again
+//this one creates the account tables: users, password resets, sessions and login tokens
 return new class extends Migration
 {
-    //create the account, session and authentication tables
+    //3.process
+
+    //create the account tables
     public function up(): void
     {
-        //store account details
+        //one row per owner account
         Schema::create('users', function (Blueprint $table)
         {
-            $table->id();
+            $table->id();                                         //id: the primary key (PK), 1, 2, 3...
             $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
+            $table->string('email')->unique();                    //no two accounts may share an email
+            $table->timestamp('email_verified_at')->nullable();   //nullable: the value may be empty
+            $table->string('password');                           //stored hashed, never as plain text
             $table->rememberToken();
-            $table->timestamps();
+            $table->timestamps();                                 //created_at and updated_at, filled in by laravel
         });
 
-        //store password reset tokens
+        //password reset codes (a standard laravel table)
         Schema::create('password_reset_tokens', function (Blueprint $table)
         {
             $table->string('email')->primary();
@@ -29,7 +34,7 @@ return new class extends Migration
             $table->timestamp('created_at')->nullable();
         });
 
-        //store session details
+        //browser sessions (a standard laravel table; the app uses tokens instead)
         Schema::create('sessions', function (Blueprint $table)
         {
             $table->string('id')->primary();
@@ -40,13 +45,13 @@ return new class extends Migration
             $table->integer('last_activity')->index();
         });
 
-        //store the access tokens used by authenticated API requests
+        //sanctum login tokens: the app sends one with every signed-in request
         Schema::create('personal_access_tokens', function (Blueprint $table)
         {
             $table->id();
-            $table->morphs('tokenable');
+            $table->morphs('tokenable');                          //which account the token belongs to
             $table->string('name');
-            $table->string('token', 64)->unique();
+            $table->string('token', 64)->unique();                //only a hash of the token is stored
             $table->text('abilities')->nullable();
             $table->timestamp('last_used_at')->nullable();
             $table->timestamp('expires_at')->nullable()->index();
@@ -54,7 +59,7 @@ return new class extends Migration
         });
     }
 
-    //remove the authentication tables in reverse dependency order
+    //remove the account tables, last created first
     public function down(): void
     {
         Schema::dropIfExists('personal_access_tokens');

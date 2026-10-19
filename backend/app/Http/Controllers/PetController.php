@@ -6,68 +6,84 @@ use App\Models\Pet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+//pet profiles: GET, POST, PUT and DELETE /api/pets
 class PetController extends Controller
 {
-    //1.read the owner's pets in name order
+    //GET /api/pets - the owner's pets in name order
     public function index(Request $request): JsonResponse
     {
-        return response()->json(
-            $request->user()
-                ->pets()
-                ->with('petBreed')
-                ->orderBy('name')
-                ->get()
-        );
+        //3.process: read only this owner's pets, with their breed details
+        $pets = $request->user()
+            ->pets()
+            ->with('petBreed')
+            ->orderBy('name')
+            ->get();
+
+        //4.output
+        return response()->json($pets);
     }
 
-    //2.create a pet linked to the current account
+    //POST /api/pets - create a pet for the signed-in owner
     public function store(Request $request): JsonResponse
     {
-        $pet = $request->user()->pets()->create($this->validated($request));
+        //2.input
+        $data = $this->validatePet($request);
 
+        //3.process: creating it through the owner's pets() fills in user_id
+        $pet = $request->user()->pets()->create($data);
+
+        //4.output: 201 means "created"
         return response()->json($pet, 201);
     }
 
-    //3.read a pet and its related records
+    //GET /api/pets/{id} - one pet with all of its records
     public function show(Request $request, Pet $pet): JsonResponse
     {
-        $this->owned($request, $pet);
-
-        return response()->json($pet->load([
+        //3.process
+        $this->checkOwner($request, $pet);
+        $pet->load([
             'vaccinationRecords',
             'medicalRecords',
             'appointments',
             'images',
             'predictions',
-        ]));
+        ]);
+
+        //4.output
+        return response()->json($pet);
     }
 
-    //4.update the selected pet's profile
+    //PUT /api/pets/{id} - update a pet's profile
     public function update(Request $request, Pet $pet): JsonResponse
     {
-        $this->owned($request, $pet);
-        $pet->update($this->validated($request));
+        //3.process: check the owner before reading the new details
+        $this->checkOwner($request, $pet);
 
+        //2.input
+        $data = $this->validatePet($request);
+
+        //3.process
+        $pet->update($data);
+
+        //4.output: read the saved row again so the answer matches the database
         return response()->json($pet->fresh());
     }
 
-    //5.delete the owner's selected pet
+    //DELETE /api/pets/{id} - delete a pet; the database also deletes its health records
     public function destroy(Request $request, Pet $pet): JsonResponse
     {
-        $this->owned($request, $pet);
+        //3.process
+        $this->checkOwner($request, $pet);
         $pet->delete();
 
+        //4.output: 204 means "done, nothing to send back"
         return response()->json(null, 204);
     }
 
-    //6.check ownership
-    private function owned(Request $request, Pet $pet): void
-    {
-        abort_unless($pet->user_id === $request->user()->id, 404);
-    }
+    //2.input
 
-    //7.validate pet details
-    private function validated(Request $request): array
+    //the rules for a pet form; laravel answers 422 with a message per field when a rule fails
+    private function validatePet(Request $request): array
     {
         return $request->validate([
             'pet_breed_id' => ['nullable', 'exists:pet_breeds,id'],
@@ -80,5 +96,16 @@ class PetController extends Controller
             'microchip_number' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
+    }
+
+    //3.process
+
+    //stop with 404 when the pet belongs to another owner
+    private function checkOwner(Request $request, Pet $pet): void
+    {
+        if ($pet->user_id !== $request->user()->id)
+        {
+            abort(404);
+        }
     }
 }

@@ -12,8 +12,12 @@ data class AuthValidationResult(
     val passwordError: String? = null
 )
 {
+    //true when no field has an error
     val isValid: Boolean
-        get() = nameError == null && emailError == null && passwordError == null
+        get()
+        {
+            return nameError == null && emailError == null && passwordError == null
+        }
 }
 
 object AuthInputValidator
@@ -63,7 +67,7 @@ object AuthInputValidator
         {
             email.isEmpty() -> "Enter your email address."
             email.length > MAX_EMAIL_LENGTH -> "Email address is too long."
-            email.any(Char::isWhitespace) -> "Email address cannot contain spaces."
+            hasSpace(email) -> "Email address cannot contain spaces."
             hasInvalidDots -> "Enter a valid email address."
             !emailPattern.matches(email) -> "Enter a valid email address."
             else -> null
@@ -77,10 +81,49 @@ object AuthInputValidator
         {
             password.isBlank() -> "Enter your password."
             registerMode && password.length < MIN_PASSWORD_LENGTH -> "Password must contain at least 8 characters."
-            registerMode && password.none(Char::isLetter) -> "Password must contain at least one letter."
-            registerMode && password.none(Char::isDigit) -> "Password must contain at least one number."
+            registerMode && !hasLetter(password) -> "Password must contain at least one letter."
+            registerMode && !hasDigit(password) -> "Password must contain at least one number."
             else -> null
         }
+    }
+
+    //true when the text contains a space, tab or line break
+    private fun hasSpace(text: String): Boolean
+    {
+        for (character in text)
+        {
+            if (character.isWhitespace())
+            {
+                return true
+            }
+        }
+        return false
+    }
+
+    //true when the text contains at least one letter
+    private fun hasLetter(text: String): Boolean
+    {
+        for (character in text)
+        {
+            if (character.isLetter())
+            {
+                return true
+            }
+        }
+        return false
+    }
+
+    //true when the text contains at least one number
+    private fun hasDigit(text: String): Boolean
+    {
+        for (character in text)
+        {
+            if (character.isDigit())
+            {
+                return true
+            }
+        }
+        return false
     }
 }
 
@@ -92,11 +135,27 @@ data class PetValidationResult(
     val weightError: String? = null
 )
 {
+    //true when no field has an error
     val isValid: Boolean
-        get() = nameError == null && birthDateError == null && weightError == null
+        get()
+        {
+            return nameError == null && birthDateError == null && weightError == null
+        }
 
+    //the first error from top to bottom of the form, shown in a toast
     val firstError: String?
-        get() = nameError ?: birthDateError ?: weightError
+        get()
+        {
+            if (nameError != null)
+            {
+                return nameError
+            }
+            if (birthDateError != null)
+            {
+                return birthDateError
+            }
+            return weightError
+        }
 }
 
 object PetInputValidator
@@ -113,8 +172,14 @@ object PetInputValidator
         val cleanBirthDate = birthDate.trim()
         val cleanWeight = weightKg.trim()
 
+        var nameError: String? = null
+        if (cleanName.isBlank())
+        {
+            nameError = "Enter the pet's name."
+        }
+
         return PetValidationResult(
-            nameError = "Enter the pet's name.".takeIf { cleanName.isBlank() },
+            nameError = nameError,
             birthDateError = validateBirthDate(cleanBirthDate, today),
             weightError = validateWeight(cleanWeight)
         )
@@ -159,13 +224,27 @@ data class VaccinationValidationResult(
     val dueDateError: String? = null
 )
 {
+    //true when no field has an error
     val isValid: Boolean
-        get() = vaccineNameError == null &&
-            administeredDateError == null &&
-            dueDateError == null
+        get()
+        {
+            return vaccineNameError == null && administeredDateError == null && dueDateError == null
+        }
 
+    //the first error from top to bottom of the form, shown in a toast
     val firstError: String?
-        get() = vaccineNameError ?: administeredDateError ?: dueDateError
+        get()
+        {
+            if (vaccineNameError != null)
+            {
+                return vaccineNameError
+            }
+            if (administeredDateError != null)
+            {
+                return administeredDateError
+            }
+            return dueDateError
+        }
 }
 
 data class MedicalRecordValidationResult(
@@ -173,11 +252,23 @@ data class MedicalRecordValidationResult(
     val diagnosisError: String? = null
 )
 {
+    //true when no field has an error
     val isValid: Boolean
-        get() = visitDateError == null && diagnosisError == null
+        get()
+        {
+            return visitDateError == null && diagnosisError == null
+        }
 
+    //the first error from top to bottom of the form, shown in a toast
     val firstError: String?
-        get() = visitDateError ?: diagnosisError
+        get()
+        {
+            if (visitDateError != null)
+            {
+                return visitDateError
+            }
+            return diagnosisError
+        }
 }
 
 object HealthInputValidator
@@ -196,7 +287,11 @@ object HealthInputValidator
         val administered = parseDate(cleanAdministeredDate)
         val due = parseDate(cleanDueDate)
 
-        val vaccineNameError = "Enter the vaccine name.".takeIf { cleanName.isBlank() }
+        var vaccineNameError: String? = null
+        if (cleanName.isBlank())
+        {
+            vaccineNameError = "Enter the vaccine name."
+        }
         val administeredDateError = when
         {
             cleanAdministeredDate.isBlank() -> null
@@ -238,7 +333,11 @@ object HealthInputValidator
             visit.isAfter(today) -> "Visit date cannot be in the future."
             else -> null
         }
-        val diagnosisError = "Enter the diagnosis or visit outcome.".takeIf { cleanDiagnosis.isBlank() }
+        var diagnosisError: String? = null
+        if (cleanDiagnosis.isBlank())
+        {
+            diagnosisError = "Enter the diagnosis or visit outcome."
+        }
 
         return MedicalRecordValidationResult(
             visitDateError = visitDateError,
@@ -256,13 +355,25 @@ data class AppointmentValidationResult(
     val reasonError: String? = null
 )
 {
+    //true when no field has an error
     val isValid: Boolean
-        get() = dateError == null && timeError == null && reasonError == null
+        get()
+        {
+            return dateError == null && timeError == null && reasonError == null
+        }
 
     //get the first message to display beside the appointment form
     fun firstError(): String?
     {
-        return dateError ?: timeError ?: reasonError
+        if (dateError != null)
+        {
+            return dateError
+        }
+        if (timeError != null)
+        {
+            return timeError
+        }
+        return reasonError
     }
 }
 

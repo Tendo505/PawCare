@@ -4,105 +4,101 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import com.example.pawcareai.DashboardActivity
 import com.example.pawcareai.R
 import com.example.pawcareai.data.AppRepository
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
-//the parts of DashboardActivity that every screen class draws into
+//everything a screen class needs from the dashboard, passed to each screen in one object:
+//the activity (for navigation), the repository (for data) and helpers to draw and show messages
 class DashboardPage(
-    val activity: AppCompatActivity,
+    val dashboard: DashboardActivity,
     val repository: AppRepository,
     private val toolbar: MaterialToolbar,
     private val contentContainer: FrameLayout,
     private val bottomNavigation: BottomNavigationView
 )
 {
+    //shared builders for cards and forms
+    val views: ViewMaker = ViewMaker(dashboard)
+    val form: FormBuilder = FormBuilder(dashboard, views)
+
     //1.screen setup
 
-    //show the title of the screen being drawn
-    fun setTitle(title: String)
+    //show the screen name in the top bar
+    fun setTitle(titleResource: Int)
     {
-        toolbar.title = title
+        toolbar.title = dashboard.getString(titleResource)
     }
 
-    //inflate a screen layout without attaching it yet
-    fun inflate(layout: Int): LinearLayout
+    //load a screen layout from res/layout (for example screen_pets.xml)
+    fun inflate(layoutResource: Int): LinearLayout
     {
-        return activity.layoutInflater.inflate(layout, contentContainer, false) as LinearLayout
+        return dashboard.layoutInflater.inflate(layoutResource, contentContainer, false) as LinearLayout
     }
 
-    //create the content area with the existing screen spacing
+    //create an empty screen with the normal padding, used by the loading and error screens
     fun blankScreen(): LinearLayout
     {
-        val root = activity.vertical(20)
-        root.setPadding(activity.dp(20), activity.dp(18), activity.dp(20), activity.dp(32))
+        val root: LinearLayout = views.column(20)
+        root.setPadding(views.dp(20), views.dp(18), views.dp(20), views.dp(32))
         return root
-    }
-
-    //3.process
-
-    //handle the result of a database update
-    fun <T> handleDatabaseResult(result: Result<T>, onSuccess: (T) -> Unit)
-    {
-        result.onSuccess(onSuccess)
-            .onFailure { toast(activity.getString(R.string.database_update_failed)) }
-    }
-
-    //confirm before deleting a record
-    fun confirmDelete(title: String, message: String, action: () -> Unit)
-    {
-        MaterialAlertDialogBuilder(activity)
-            .setTitle(title)
-            .setMessage(message)
-            .setNegativeButton(R.string.action_keep, null)
-            .setPositiveButton(R.string.action_delete) { _, _ -> action() }
-            .show()
     }
 
     //4.output
 
-    //display the selected module inside the content container
+    //replace whatever is in the content area with this screen, inside a scroll view
     fun show(root: LinearLayout)
     {
         contentContainer.removeAllViews()
-        val scrollView = ScrollView(activity)
+        val scrollView: ScrollView = ScrollView(dashboard)
         scrollView.isFillViewport = true
         scrollView.addView(root)
         contentContainer.addView(scrollView)
     }
 
-    //show a long message at the bottom of the screen
+    //show a short message at the bottom of the screen
     fun toast(message: String?)
     {
-        Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
+        Toast.makeText(dashboard, message, Toast.LENGTH_LONG).show()
+    }
+
+    //shown when a save or delete request to laravel failed
+    fun showDatabaseUpdateError()
+    {
+        toast(dashboard.getString(R.string.database_update_failed))
+    }
+
+    //ask "Delete ...?" and run onConfirm only when the user taps Delete
+    fun confirmDelete(title: String, message: String, onConfirm: () -> Unit)
+    {
+        val builder: MaterialAlertDialogBuilder = MaterialAlertDialogBuilder(dashboard)
+        builder.setTitle(title)
+        builder.setMessage(message)
+        builder.setNegativeButton(R.string.action_keep, null)
+        builder.setPositiveButton(R.string.action_delete) { dialog, which ->
+            onConfirm()
+        }
+        builder.show()
     }
 
     //5.navigation
 
-    //check that the activity can still be drawn
-    val isActive: Boolean
-        get()
-        {
-            return !activity.isFinishing && !activity.isDestroyed
-        }
-
-    //check that a refresh still belongs to the tab on screen
-    fun isShowing(tabId: Int): Boolean
+    //true while the activity is open, so late laravel answers do not draw on a closed screen
+    fun isOpen(): Boolean
     {
-        return isActive && bottomNavigation.selectedItemId == tabId
+        return !dashboard.isFinishing && !dashboard.isDestroyed
     }
 
-    //read the tab the user selected
-    val selectedTab: Int
-        get()
-        {
-            return bottomNavigation.selectedItemId
-        }
+    //true when this bottom tab is the one selected now
+    fun isTabSelected(tabId: Int): Boolean
+    {
+        return isOpen() && bottomNavigation.selectedItemId == tabId
+    }
 
-    //switch to another tab
+    //switch to another bottom tab, the same as the user tapping it
     fun openTab(tabId: Int)
     {
         bottomNavigation.selectedItemId = tabId

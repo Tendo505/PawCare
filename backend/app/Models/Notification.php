@@ -4,8 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+//a reminder message for an owner (table: notifications)
 class Notification extends Model
 {
+    //1.setup
+
     //notification fields that can be saved
     protected $fillable = [
         'user_id',
@@ -24,6 +27,8 @@ class Notification extends Model
             'read_at' => 'datetime'
         ];
     }
+
+    //4.output
 
     //get the user receiving this notification
     public function user()

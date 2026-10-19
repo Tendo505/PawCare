@@ -292,6 +292,7 @@ interface PawCareApi
 
 object NetworkModule
 {
+    //@Volatile makes every thread see the newest token straight away
     @Volatile
     private var authToken: String? = null
 
@@ -303,10 +304,21 @@ object NetworkModule
 
     private val backendClient: OkHttpClient = createBackendClient()
 
-    //create the api only when it is first needed
-    val backend: PawCareApi by lazy {
-        retrofit(BuildConfig.API_BASE_URL, backendClient).create(PawCareApi::class.java)
-    }
+    //the api is created the first time it is needed, then the same one is reused
+    private var backendApi: PawCareApi? = null
+
+    val backend: PawCareApi
+        get()
+        {
+            val existingApi: PawCareApi? = backendApi
+            if (existingApi != null)
+            {
+                return existingApi
+            }
+            val newApi: PawCareApi = retrofit(BuildConfig.API_BASE_URL, backendClient).create(PawCareApi::class.java)
+            backendApi = newApi
+            return newApi
+        }
 
     //configure requests and basic connection logging
     internal fun createBackendClient(): OkHttpClient
@@ -335,8 +347,10 @@ object NetworkModule
         requestBuilder.header("Host", "pawcare-api.test")
 
         val token: String? = authToken
-        token?.takeIf { it.isNotBlank() }?.let { currentToken ->
-            requestBuilder.header("Authorization", "Bearer $currentToken")
+        //signed-in requests carry the login token, for example "Bearer 12|abc..."
+        if (token != null && token.isNotBlank())
+        {
+            requestBuilder.header("Authorization", "Bearer $token")
         }
 
         return requestBuilder.build()

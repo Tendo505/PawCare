@@ -7,9 +7,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
+//an owner account that signs in to the app (table: users)
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
+
+    //1.setup
 
     //account fields that can be saved
     protected $fillable = [
@@ -32,6 +35,8 @@ class User extends Authenticatable
             'password' => 'hashed'
         ];
     }
+
+    //4.output
 
     //get the pets belonging to this account
     public function pets()

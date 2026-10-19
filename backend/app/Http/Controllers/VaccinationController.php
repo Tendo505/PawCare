@@ -6,58 +6,84 @@ use App\Models\VaccinationRecord;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+//vaccination records: GET, POST, PUT and DELETE /api/vaccinations
 class VaccinationController extends Controller
 {
-    //read vaccinations for the owner's pets in due-date order
+    //GET /api/vaccinations - vaccinations for the owner's pets, nearest due date first
     public function index(Request $request): JsonResponse
     {
-        return response()->json(
-            VaccinationRecord::whereHas('pet', fn ($q) => $q->where('user_id', $request->user()->id))
-                ->with('pet:id,name,species')
-                ->orderBy('due_date')
-                ->get()
-        );
+        //3.process: a vaccination has no user_id, so keep only records whose pet belongs to this owner
+        $ownerId = $request->user()->id;
+        $records = VaccinationRecord::whereHas('pet', function ($petQuery) use ($ownerId)
+        {
+            $petQuery->where('user_id', $ownerId);
+        })
+            ->with('pet:id,name,species')
+            ->orderBy('due_date')
+            ->get();
+
+        //4.output
+        return response()->json($records);
     }
 
-    //create a vaccination record for an owned pet
+    //POST /api/vaccinations - add a vaccination to one of the owner's pets
     public function store(Request $request): JsonResponse
     {
-        $data = $this->validated($request);
-        $this->ownedPet($request, (int) $data['pet_id']);
+        //2.input
+        $data = $this->validateVaccination($request);
 
-        return response()->json(VaccinationRecord::create($data)->load('pet:id,name'), 201);
+        //3.process
+        $this->ownedPet($request, (int) $data['pet_id']);
+        $record = VaccinationRecord::create($data);
+        $record->load('pet:id,name');
+
+        //4.output
+        return response()->json($record, 201);
     }
 
-    //read one vaccination record and its pet details
+    //GET /api/vaccinations/{id} - one vaccination record
     public function show(Request $request, VaccinationRecord $vaccination): JsonResponse
     {
-        $this->ownedRecord($request, $vaccination);
+        //3.process
+        $this->checkOwner($request, $vaccination);
+        $vaccination->load('pet:id,name');
 
-        return response()->json($vaccination->load('pet:id,name'));
+        //4.output
+        return response()->json($vaccination);
     }
 
-    //update vaccination details after checking ownership and dates
+    //PUT /api/vaccinations/{id} - update a vaccination record
     public function update(Request $request, VaccinationRecord $vaccination): JsonResponse
     {
-        $this->ownedRecord($request, $vaccination);
-        $data = $this->validated($request);
+        //3.process: check the owner before reading the new details
+        $this->checkOwner($request, $vaccination);
+
+        //2.input
+        $data = $this->validateVaccination($request);
+
+        //3.process: the record may also be moved to another pet of the same owner
         $this->ownedPet($request, (int) $data['pet_id']);
         $vaccination->update($data);
 
+        //4.output
         return response()->json($vaccination->fresh()->load('pet:id,name'));
     }
 
-    //delete the selected vaccination record
+    //DELETE /api/vaccinations/{id} - delete a vaccination record
     public function destroy(Request $request, VaccinationRecord $vaccination): JsonResponse
     {
-        $this->ownedRecord($request, $vaccination);
+        //3.process
+        $this->checkOwner($request, $vaccination);
         $vaccination->delete();
 
+        //4.output
         return response()->json(null, 204);
     }
 
-    //validate vaccine fields and the order of administered and due dates
-    private function validated(Request $request): array
+    //2.input
+
+    //the rules for a vaccination form; the due date cannot be before the date it was given
+    private function validateVaccination(Request $request): array
     {
         return $request->validate([
             'pet_id' => ['required', 'integer', 'exists:pets,id'],
@@ -71,9 +97,15 @@ class VaccinationController extends Controller
         ]);
     }
 
-    //hide records owned by another account
-    private function ownedRecord(Request $request, VaccinationRecord $item): void
+    //3.process
+
+    //stop with 404 when the record's pet belongs to another owner
+    private function checkOwner(Request $request, VaccinationRecord $record): void
     {
-        abort_unless($item->pet()->where('user_id', $request->user()->id)->exists(), 404);
+        $ownsPet = $record->pet()->where('user_id', $request->user()->id)->exists();
+        if (! $ownsPet)
+        {
+            abort(404);
+        }
     }
 }

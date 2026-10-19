@@ -1,73 +1,87 @@
 package com.example.pawcareai.dashboard
 
-import android.content.Context
+import android.widget.LinearLayout
 import com.example.pawcareai.R
 import com.example.pawcareai.data.BreedPrediction
+import com.example.pawcareai.data.BreedPredictionOption
 import com.google.android.material.card.MaterialCardView
 
-//cards for the latest scan result and the saved scan history
-
-//4.output
-
-//create the latest breed match and alternative predictions
-fun Context.predictionResultCard(result: BreedPrediction): MaterialCardView
+//the cards on the AI scan screen: the latest result and the saved scan history
+class PredictionCards(private val page: DashboardPage)
 {
-    val resultBody = vertical(18)
-    resultBody.addView(label(getString(R.string.ai_best_match), 13, true, R.color.paw_primary))
-    resultBody.addView(label(result.breed.replace('_', ' '), 25, true, R.color.paw_text).withTopMargin(4))
+    private val views: ViewMaker = page.views
 
-    val speciesName: String = result.species.replaceFirstChar { character -> character.uppercase() }
-    //model probability x 100 for display
-    val confidencePercent: Int = (result.confidence * 100).toInt()
-    resultBody.addView(label(getString(R.string.ai_confidence, speciesName, confidencePercent), 15, false, R.color.paw_muted).withTopMargin(4))
-    if (result.topPredictions.size > 1)
+    //4.output
+
+    //the big result card: best match, confidence, two other possibilities and the linked pet
+    fun resultCard(result: BreedPrediction): MaterialCardView
     {
-        resultBody.addView(label(getString(R.string.ai_other_possibilities), 14, true, R.color.paw_text).withTopMargin(14))
-        result.topPredictions.drop(1).take(2).forEach { prediction ->
-            val predictionText: String = getString(
-                R.string.ai_other_option,
-                prediction.breed.replace('_', ' '),
-                (prediction.confidence * 100).toInt()
-            )
-            resultBody.addView(label(predictionText, 14, false, R.color.paw_muted).withTopMargin(5))
+        val body: LinearLayout = views.column(18)
+        body.addView(views.label(page.dashboard.getString(R.string.ai_best_match), 13, true, R.color.paw_primary))
+        views.addWithTopMargin(body, views.label(TextFormat.breedName(result.breed), 25, true, R.color.paw_text), 4)
+        views.addWithTopMargin(body, views.label(confidenceText(result), 15, false, R.color.paw_muted), 4)
+
+        //the first item in topPredictions is the best match, so the next two are the alternatives
+        if (result.topPredictions.size > 1)
+        {
+            val heading: String = page.dashboard.getString(R.string.ai_other_possibilities)
+            views.addWithTopMargin(body, views.label(heading, 14, true, R.color.paw_text), 14)
+            var index: Int = 1
+            while (index < result.topPredictions.size && index <= 2)
+            {
+                val option: BreedPredictionOption = result.topPredictions[index]
+                val optionText: String = page.dashboard.getString(R.string.ai_other_option, TextFormat.breedName(option.breed), TextFormat.percent(option.confidence))
+                views.addWithTopMargin(body, views.label(optionText, 14, false, R.color.paw_muted), 5)
+                index = index + 1
+            }
         }
+
+        if (result.petName.isNotBlank())
+        {
+            val savedFor: String = page.dashboard.getString(R.string.ai_saved_for, result.petName)
+            views.addWithTopMargin(body, views.label(savedFor, 13, true, R.color.paw_primary), 12)
+        }
+
+        //the result card has a green border so it stands out from the history
+        val card: MaterialCardView = views.card(R.color.white)
+        card.strokeColor = views.color(R.color.paw_primary)
+        card.strokeWidth = views.dp(1)
+        card.addView(body)
+        return card
     }
-    if (result.petName.isNotBlank())
+
+    //a smaller card for one saved scan: breed, confidence, then pet name and date
+    fun historyCard(prediction: BreedPrediction): MaterialCardView
     {
-        resultBody.addView(label(getString(R.string.ai_saved_for, result.petName), 13, true, R.color.paw_primary).withTopMargin(12))
+        val body: LinearLayout = views.column(16)
+        body.addView(views.label(TextFormat.breedName(prediction.breed), 18, true, R.color.paw_text))
+        views.addWithTopMargin(body, views.label(confidenceText(prediction), 14, false, R.color.paw_primary), 4)
+
+        val details: MutableList<String> = mutableListOf()
+        if (prediction.petName.isNotBlank())
+        {
+            details.add(prediction.petName)
+        }
+        //createdAt looks like "2026-10-19T08:30:00Z"; only the date part is shown
+        val date: String = prediction.createdAt.substringBefore('T')
+        if (date.isNotBlank())
+        {
+            details.add(TextFormat.prettyDate(page.dashboard, date))
+        }
+        if (details.isNotEmpty())
+        {
+            views.addWithTopMargin(body, views.label(details.joinToString(" · "), 13, false, R.color.paw_muted), 6)
+        }
+
+        val card: MaterialCardView = views.card(R.color.white)
+        card.addView(body)
+        return card
     }
 
-    val resultCard: MaterialCardView = card(R.color.white)
-    resultCard.strokeColor = color(R.color.paw_primary)
-    resultCard.strokeWidth = dp(1)
-    resultCard.addView(resultBody)
-    return resultCard
-}
-
-//create a saved prediction history card
-fun Context.predictionCard(prediction: BreedPrediction): MaterialCardView
-{
-    val predictionBody = vertical(16)
-    predictionBody.addView(label(prediction.breed.replace('_', ' '), 18, true, R.color.paw_text))
-    val speciesName: String = prediction.species.replaceFirstChar { character -> character.uppercase() }
-    //model probability x 100 for display
-    val confidencePercent: Int = (prediction.confidence * 100).toInt()
-    predictionBody.addView(label(getString(R.string.ai_confidence, speciesName, confidencePercent), 14, false, R.color.paw_primary).withTopMargin(4))
-
-    val details = mutableListOf<String>()
-    if (prediction.petName.isNotBlank())
+    //"Cat · 95% confidence"
+    private fun confidenceText(prediction: BreedPrediction): String
     {
-        details += prediction.petName
+        val species: String = TextFormat.capitalise(prediction.species)
+        return page.dashboard.getString(R.string.ai_confidence, species, TextFormat.percent(prediction.confidence))
     }
-    prediction.createdAt.substringBefore('T')
-        .takeIf { date -> date.isNotBlank() }
-        ?.let { date -> details += prettyDate(date) }
-    if (details.isNotEmpty())
-    {
-        predictionBody.addView(label(details.joinToString(" · "), 13, false, R.color.paw_muted).withTopMargin(6))
-    }
-
-    val historyCard: MaterialCardView = card(R.color.white)
-    historyCard.addView(predictionBody)
-    return historyCard
 }

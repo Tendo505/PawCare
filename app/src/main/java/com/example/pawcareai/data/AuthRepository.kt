@@ -3,119 +3,105 @@ package com.example.pawcareai.data
 import com.example.pawcareai.network.ApiMessage
 import com.example.pawcareai.network.ApiUser
 import com.example.pawcareai.network.AuthRequest
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import com.example.pawcareai.network.AuthResponse
 
-//account actions: restore, register, login and logout
+//account actions: restore the saved login, register, log in and log out
 class AuthRepository(
     private val session: ApiSession,
-    private val onSessionCleared: () -> Unit
+    private val records: RecordCache
 )
 {
-    //2.input
-
-    //prepare account details for laravel
-    private fun authRequest(email: String, password: String, name: String? = null): AuthRequest
-    {
-        return AuthRequest(email.trim().lowercase(), password, name?.trim())
-    }
-
     //3.process
 
-    //restore the account using its saved token
+    //ask laravel who owns the saved token (GET me)
     fun restoreSession(onResult: (Result<UserAccount>) -> Unit)
     {
-        if (!session.hasSession)
+        if (!session.hasSession())
         {
             onResult(Result.failure(IllegalStateException("Please sign in.")))
             return
         }
 
-        session.api.me().enqueueResult { result ->
-            result.onSuccess { user ->
-                session.activeUser = user.toUserAccount()
-            }
-            result.onFailure { error ->
-                //a lost connection does not mean the saved token is invalid
+        session.api.me().enqueue(ApiCallback<ApiUser>(
+            onSuccess = { apiUser ->
+                val account: UserAccount = toUserAccount(apiUser)
+                session.activeUser = account
+                onResult(Result.success(account))
+            },
+            onFailure = { error ->
+                //only a 401 means the token is invalid; a lost connection keeps the token
                 if (error is ApiRequestException && error.statusCode == 401)
                 {
                     clearSession()
                 }
+                onResult(Result.failure(error))
             }
-
-            val accountResult: Result<UserAccount> = result.map { user -> user.toUserAccount() }
-            onResult(accountResult)
-        }
+        ))
     }
 
-    //create a new account through laravel
+    //create a new account (POST register)
     fun register(name: String, email: String, password: String, onResult: (Result<UserAccount>) -> Unit)
     {
-        session.api.register(authRequest(email, password, name)).enqueueResult { result ->
-            result.onSuccess { authentication ->
-                session.saveToken(authentication.token, authentication.user.toUserAccount())
-            }
-
-            val accountResult: Result<UserAccount> = result.map { authentication ->
-                authentication.user.toUserAccount()
-            }
-            onResult(accountResult)
-        }
+        val request: AuthRequest = AuthRequest(email.trim().lowercase(), password, name.trim())
+        session.api.register(request).enqueue(createLoginCallback(onResult))
     }
 
-    //sign in and save the returned token
+    //sign in with an existing account (POST login)
     fun login(email: String, password: String, onResult: (Result<UserAccount>) -> Unit)
     {
-        session.api.login(authRequest(email, password)).enqueueResult { result ->
-            result.onSuccess { authentication ->
-                session.saveToken(authentication.token, authentication.user.toUserAccount())
-            }
-
-            val accountResult: Result<UserAccount> = result.map { authentication ->
-                authentication.user.toUserAccount()
-            }
-            onResult(accountResult)
-        }
+        val request: AuthRequest = AuthRequest(email.trim().lowercase(), password)
+        session.api.login(request).enqueue(createLoginCallback(onResult))
     }
 
-    //sign out and clear the local session
+    //register and login both answer with a token and the account, so they share this callback
+    private fun createLoginCallback(onResult: (Result<UserAccount>) -> Unit): ApiCallback<AuthResponse>
+    {
+        return ApiCallback<AuthResponse>(
+            onSuccess = { authentication ->
+                val account: UserAccount = toUserAccount(authentication.user)
+                session.saveToken(authentication.token, account)
+                onResult(Result.success(account))
+            },
+            onFailure = { error ->
+                onResult(Result.failure(error))
+            }
+        )
+    }
+
+    //sign out (POST logout); the phone forgets the session even if laravel cannot be reached
     fun logout(onComplete: () -> Unit)
     {
-        if (!session.hasSession)
+        if (!session.hasSession())
         {
             clearSession()
             onComplete()
             return
         }
-        session.api.logout().enqueue(object : Callback<ApiMessage>
-        {
-            override fun onResponse(call: Call<ApiMessage>, response: Response<ApiMessage>)
-            {
-                clearSession()
-                onComplete()
-            }
 
-            override fun onFailure(call: Call<ApiMessage>, throwable: Throwable)
-            {
+        session.api.logout().enqueue(ApiCallback<ApiMessage>(
+            onSuccess = { message ->
+                clearSession()
+                onComplete()
+            },
+            onFailure = { error ->
                 clearSession()
                 onComplete()
             }
-        })
+        ))
     }
 
-    //remove the token and records belonging to the current session
+    //remove the token and every record of this account from memory
     private fun clearSession()
     {
         session.clearToken()
-        onSessionCleared()
+        records.clearAll()
     }
 
     //4.output
 
-    //convert api account details for the app
-    private fun ApiUser.toUserAccount(): UserAccount
+    //copy the account details sent by laravel into the app's own class
+    private fun toUserAccount(apiUser: ApiUser): UserAccount
     {
-        return UserAccount(id = id, name = name, email = email)
+        return UserAccount(id = apiUser.id, name = apiUser.name, email = apiUser.email)
     }
 }

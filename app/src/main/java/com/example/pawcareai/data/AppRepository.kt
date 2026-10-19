@@ -3,160 +3,187 @@ package com.example.pawcareai.data
 import android.content.Context
 import com.example.pawcareai.R
 
-//single entry point for the screens; each feature is handled by its own repository
+//the single class the screens talk to
+//it passes each request to the repository for that feature, so the screens never deal with laravel directly
 class AppRepository(context: Context)
 {
-    //shared session and feature repositories
-    private val session: ApiSession = ApiSession(context)
-    private val unknownPetName: String = context.getString(R.string.unknown_pet)
-    private val petRepository: PetRepository = PetRepository(session.api)
-    private val vaccinationRepository: VaccinationRepository = VaccinationRepository(session.api)
-    private val medicalRecordRepository: MedicalRecordRepository = MedicalRecordRepository(session.api)
-    private val appointmentRepository: AppointmentRepository = AppointmentRepository(session.api)
-    private val aiScanRepository: AiScanRepository = AiScanRepository(session.api, ::petName)
-    private val systemHealthRepository: SystemHealthRepository = SystemHealthRepository(session.api)
-    private val authRepository: AuthRepository = AuthRepository(session, ::clearRecords)
-
     //1.screen setup
 
-    //read the signed-in account
+    //shared login session and the phone copy of the records
+    private val session: ApiSession = ApiSession(context)
+    private val cache: RecordCache = RecordCache(context.getString(R.string.unknown_pet))
+
+    //one repository per feature
+    private val authRepository: AuthRepository = AuthRepository(session, cache)
+    private val petRepository: PetRepository = PetRepository(session.api, cache)
+    private val vaccinationRepository: VaccinationRepository = VaccinationRepository(session.api, cache)
+    private val medicalRecordRepository: MedicalRecordRepository = MedicalRecordRepository(session.api, cache)
+    private val appointmentRepository: AppointmentRepository = AppointmentRepository(session.api, cache)
+    private val aiScanRepository: AiScanRepository = AiScanRepository(session.api, cache)
+    private val systemHealthRepository: SystemHealthRepository = SystemHealthRepository(session.api)
+
+    //the signed-in account, or null before the session is restored
     val currentUser: UserAccount?
         get()
         {
             return session.activeUser
         }
 
-    //check whether an authentication token has been saved
+    //true when a login token is saved on this phone
     val hasSession: Boolean
         get()
         {
-            return session.hasSession
+            return session.hasSession()
         }
 
     //2.input
 
-    //restore the account using its saved token
-    fun restoreSession(onResult: (Result<UserAccount>) -> Unit) = authRepository.restoreSession(onResult)
+    //restore the saved login when the app opens
+    fun restoreSession(onResult: (Result<UserAccount>) -> Unit)
+    {
+        authRepository.restoreSession(onResult)
+    }
 
-    //create a new account through laravel
-    fun register(name: String, email: String, password: String, onResult: (Result<UserAccount>) -> Unit) =
+    //create a new account
+    fun register(name: String, email: String, password: String, onResult: (Result<UserAccount>) -> Unit)
+    {
         authRepository.register(name, email, password, onResult)
+    }
 
-    //sign in and save the returned token
-    fun login(email: String, password: String, onResult: (Result<UserAccount>) -> Unit) =
+    //sign in with an existing account
+    fun login(email: String, password: String, onResult: (Result<UserAccount>) -> Unit)
+    {
         authRepository.login(email, password, onResult)
+    }
 
-    //sign out and clear the local session
-    fun logout(onComplete: () -> Unit) = authRepository.logout(onComplete)
+    //sign out and forget the saved login
+    fun logout(onComplete: () -> Unit)
+    {
+        authRepository.logout(onComplete)
+    }
 
     //3.process
 
-    //read all records before replacing the current cache
+    //load every record list from laravel (see RecordRefresh for the five steps)
     fun refreshData(onResult: (Result<Unit>) -> Unit)
     {
-        RecordRefresh(session.api, ::replaceRecords, onResult).start()
+        val refresh: RecordRefresh = RecordRefresh(session.api, cache, onResult)
+        refresh.start()
     }
 
-    //check laravel, database and ai connections
-    fun checkSystemHealth(onResult: (Result<SystemHealth>) -> Unit) = systemHealthRepository.checkSystemHealth(onResult)
+    //check laravel, the database and the ai service
+    fun checkSystemHealth(onResult: (Result<SystemHealth>) -> Unit)
+    {
+        systemHealthRepository.checkSystemHealth(onResult)
+    }
 
-    //create or update a pet, then refresh its cached record
-    fun savePet(pet: Pet, onResult: (Result<Pet>) -> Unit) = petRepository.savePet(pet, onResult)
+    //save a new or edited pet
+    fun savePet(pet: Pet, onResult: (Result<Pet>) -> Unit)
+    {
+        petRepository.savePet(pet, onResult)
+    }
 
-    //delete a pet and remove its related records from the cache
+    //delete a pet and its health records
     fun deletePet(id: Long, onResult: (Result<Unit>) -> Unit)
     {
-        petRepository.deletePet(id) { result ->
-            result.onSuccess { removeRecordsForPet(id) }
-            onResult(result)
-        }
+        petRepository.deletePet(id, onResult)
     }
 
-    //create or update a vaccination record
-    fun saveVaccination(record: VaccinationRecord, onResult: (Result<VaccinationRecord>) -> Unit) =
+    //save a new or edited vaccination
+    fun saveVaccination(record: VaccinationRecord, onResult: (Result<VaccinationRecord>) -> Unit)
+    {
         vaccinationRepository.saveVaccination(record, onResult)
+    }
 
-    //delete a vaccination record
-    fun deleteVaccination(id: Long, onResult: (Result<Unit>) -> Unit) = vaccinationRepository.deleteVaccination(id, onResult)
+    //delete a vaccination
+    fun deleteVaccination(id: Long, onResult: (Result<Unit>) -> Unit)
+    {
+        vaccinationRepository.deleteVaccination(id, onResult)
+    }
 
-    //create or update a medical record
-    fun saveMedicalRecord(record: MedicalRecord, onResult: (Result<MedicalRecord>) -> Unit) =
+    //save a new or edited medical record
+    fun saveMedicalRecord(record: MedicalRecord, onResult: (Result<MedicalRecord>) -> Unit)
+    {
         medicalRecordRepository.saveMedicalRecord(record, onResult)
+    }
 
     //delete a medical record
-    fun deleteMedicalRecord(id: Long, onResult: (Result<Unit>) -> Unit) = medicalRecordRepository.deleteMedicalRecord(id, onResult)
+    fun deleteMedicalRecord(id: Long, onResult: (Result<Unit>) -> Unit)
+    {
+        medicalRecordRepository.deleteMedicalRecord(id, onResult)
+    }
 
-    //create or update an appointment
-    fun saveAppointment(appointment: Appointment, onResult: (Result<Appointment>) -> Unit) =
+    //save a new or edited appointment
+    fun saveAppointment(appointment: Appointment, onResult: (Result<Appointment>) -> Unit)
+    {
         appointmentRepository.saveAppointment(appointment, onResult)
+    }
 
     //delete an appointment
-    fun deleteAppointment(id: Long, onResult: (Result<Unit>) -> Unit) = appointmentRepository.deleteAppointment(id, onResult)
-
-    //upload a photo and cache its saved prediction
-    fun analyzeBreed(
-        imageBytes: ByteArray,
-        mimeType: String,
-        fileName: String,
-        petId: Long?,
-        onResult: (Result<BreedPrediction>) -> Unit
-    ) = aiScanRepository.analyzeBreed(imageBytes, mimeType, fileName, petId, onResult)
-
-    //replace every cache with a completed refresh, pets first so predictions can read pet names
-    private fun replaceRecords(records: LoadedRecords)
+    fun deleteAppointment(id: Long, onResult: (Result<Unit>) -> Unit)
     {
-        petRepository.replaceCache(records.pets)
-        vaccinationRepository.replaceCache(records.vaccinations)
-        medicalRecordRepository.replaceCache(records.medicalRecords)
-        appointmentRepository.replaceCache(records.appointments)
-        aiScanRepository.replaceCache(records.predictions)
+        appointmentRepository.deleteAppointment(id, onResult)
     }
 
-    //remove the health records linked to a deleted pet
-    private fun removeRecordsForPet(petId: Long)
+    //upload a photo for breed recognition
+    fun analyzeBreed(imageBytes: ByteArray, mimeType: String, fileName: String, petId: Long?, onResult: (Result<BreedPrediction>) -> Unit)
     {
-        vaccinationRepository.removePet(petId)
-        medicalRecordRepository.removePet(petId)
-        appointmentRepository.removePet(petId)
-    }
-
-    //remove records belonging to a cleared session
-    private fun clearRecords()
-    {
-        petRepository.clearCache()
-        vaccinationRepository.clearCache()
-        medicalRecordRepository.clearCache()
-        appointmentRepository.clearCache()
-        aiScanRepository.clearCache()
+        aiScanRepository.analyzeBreed(imageBytes, mimeType, fileName, petId, onResult)
     }
 
     //4.output
 
-    //read cached records in the order each screen shows them
-    fun pets(): List<Pet> = petRepository.pets()
-    fun pet(id: Long): Pet? = petRepository.pet(id)
-    fun vaccinations(): List<VaccinationRecord> = vaccinationRepository.vaccinations()
-    fun medicalRecords(): List<MedicalRecord> = medicalRecordRepository.medicalRecords()
-    fun appointments(): List<Appointment> = appointmentRepository.appointments()
-    fun predictions(): List<BreedPrediction> = aiScanRepository.predictions()
-
-    //read the most recent connection check
-    fun systemHealth(): SystemHealth? = systemHealthRepository.systemHealth()
-
-    //calculate dashboard totals from the loaded records
-    fun stats(): DashboardStats
+    //pets in alphabetical order
+    fun pets(): List<Pet>
     {
-        return DashboardCalculator.calculate(
-            pets = pets(),
-            vaccinations = vaccinations(),
-            appointments = appointments(),
-            medicalRecords = medicalRecords()
-        )
+        return petRepository.pets()
     }
 
-    //read a pet name for record labels
+    //one pet by id, or null when it no longer exists
+    fun pet(id: Long): Pet?
+    {
+        return cache.findPet(id)
+    }
+
+    //vaccinations with the nearest due date first
+    fun vaccinations(): List<VaccinationRecord>
+    {
+        return vaccinationRepository.vaccinations()
+    }
+
+    //medical records with the latest visit first
+    fun medicalRecords(): List<MedicalRecord>
+    {
+        return medicalRecordRepository.medicalRecords()
+    }
+
+    //appointments by date and time
+    fun appointments(): List<Appointment>
+    {
+        return appointmentRepository.appointments()
+    }
+
+    //breed scans with the newest first
+    fun predictions(): List<BreedPrediction>
+    {
+        return aiScanRepository.predictions()
+    }
+
+    //the most recent service check
+    fun systemHealth(): SystemHealth?
+    {
+        return systemHealthRepository.systemHealth()
+    }
+
+    //the four totals on the home screen
+    fun stats(): DashboardStats
+    {
+        return DashboardCalculator.calculate(pets(), vaccinations(), appointments(), medicalRecords())
+    }
+
+    //a pet's name for record labels, or "Unknown pet"
     fun petName(petId: Long): String
     {
-        return pet(petId)?.name ?: unknownPetName
+        return cache.petName(petId)
     }
 }

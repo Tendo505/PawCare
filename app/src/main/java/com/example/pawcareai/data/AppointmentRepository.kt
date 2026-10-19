@@ -5,102 +5,89 @@ import com.example.pawcareai.network.AppointmentRequest
 import com.example.pawcareai.network.PawCareApi
 import retrofit2.Call
 
-//clinic appointments loaded through laravel
-class AppointmentRepository(private val api: PawCareApi)
+//saves and deletes clinic appointments through laravel, then updates the phone copy
+class AppointmentRepository(
+    private val api: PawCareApi,
+    private val cache: RecordCache
+)
 {
-    //temporary screen data loaded through laravel
-    private var appointmentCache: List<Appointment> = emptyList()
-
     //2.input
 
-    //prepare appointment details for saving
-    private fun Appointment.toRequest(): AppointmentRequest
+    //build the json body laravel expects; the time is sent as HH:MM
+    private fun createRequest(appointment: Appointment): AppointmentRequest
     {
         return AppointmentRequest(
-            petId = petId,
-            appointmentDate = appointmentDate,
-            appointmentTime = appointmentTime.take(5),
-            clinic = clinic.trim().nullIfBlank(),
-            reason = reason.trim(),
-            status = status,
-            notes = notes.trim().nullIfBlank()
+            petId = appointment.petId,
+            appointmentDate = appointment.appointmentDate,
+            appointmentTime = appointment.appointmentTime.take(5),
+            clinic = blankToNull(appointment.clinic),
+            reason = appointment.reason.trim(),
+            status = appointment.status,
+            notes = blankToNull(appointment.notes)
         )
     }
 
     //3.process
 
-    //create or update an appointment
+    //create a new appointment (POST) or update an existing one (PUT appointments/{id})
     fun saveAppointment(appointment: Appointment, onResult: (Result<Appointment>) -> Unit)
     {
-        val saveCall: Call<ApiAppointment> = if (appointment.id > 0)
+        val request: AppointmentRequest = createRequest(appointment)
+        val saveCall: Call<ApiAppointment>
+        if (appointment.id > 0)
         {
-            api.updateAppointment(appointment.id, appointment.toRequest())
+            saveCall = api.updateAppointment(appointment.id, request)
         }
         else
         {
-            api.createAppointment(appointment.toRequest())
+            saveCall = api.createAppointment(request)
         }
 
-        saveCall.saveResult(
-            convert = { it.toAppointment() },
-            updateCache = { saved -> appointmentCache = appointmentCache.replaceOrAdd(saved) { it.id } },
-            onResult = onResult
-        )
+        saveCall.enqueue(ApiCallback<ApiAppointment>(
+            onSuccess = { apiAppointment ->
+                val savedAppointment: Appointment = RecordConverter.toAppointment(apiAppointment)
+                putInCache(savedAppointment)
+                onResult(Result.success(savedAppointment))
+            },
+            onFailure = { error ->
+                onResult(Result.failure(error))
+            }
+        ))
     }
 
-    //delete an appointment
+    //delete an appointment (DELETE appointments/{id})
     fun deleteAppointment(id: Long, onResult: (Result<Unit>) -> Unit)
     {
-        api.deleteAppointment(id).enqueueEmpty { result ->
-            result.onSuccess {
-                appointmentCache = appointmentCache.filterNot { appointment -> appointment.id == id }
+        api.deleteAppointment(id).enqueue(EmptyApiCallback(
+            onSuccess = {
+                cache.appointments.removeAll { appointment -> appointment.id == id }
+                onResult(Result.success(Unit))
+            },
+            onFailure = { error ->
+                onResult(Result.failure(error))
             }
-            onResult(result)
+        ))
+    }
+
+    //replace the appointment with the same id, or add it at the end when it is new
+    private fun putInCache(savedAppointment: Appointment)
+    {
+        for (index in cache.appointments.indices)
+        {
+            if (cache.appointments[index].id == savedAppointment.id)
+            {
+                cache.appointments[index] = savedAppointment
+                return
+            }
         }
-    }
-
-    //replace cached appointments after a full refresh
-    fun replaceCache(appointments: List<ApiAppointment>)
-    {
-        appointmentCache = appointments.map { appointment -> appointment.toAppointment() }
-    }
-
-    //remove appointments linked to a deleted pet
-    fun removePet(petId: Long)
-    {
-        appointmentCache = appointmentCache.filterNot { appointment -> appointment.petId == petId }
-    }
-
-    //remove appointments belonging to a cleared session
-    fun clearCache()
-    {
-        appointmentCache = emptyList()
+        cache.appointments.add(savedAppointment)
     }
 
     //4.output
 
-    //read appointments by date, then time
+    //read appointments by date, and by time when two are on the same day
     fun appointments(): List<Appointment>
     {
-        val appointmentOrder: Comparator<Appointment> = compareBy(
-            { appointment -> appointment.appointmentDate },
-            { appointment -> appointment.appointmentTime }
-        )
-        return appointmentCache.sortedWith(appointmentOrder)
-    }
-
-    //convert an api appointment for the app
-    private fun ApiAppointment.toAppointment(): Appointment
-    {
-        return Appointment(
-            id = id,
-            petId = petId,
-            appointmentDate = appointmentDate,
-            appointmentTime = appointmentTime.take(5),
-            clinic = clinic.orEmpty(),
-            reason = reason,
-            status = status,
-            notes = notes.orEmpty()
-        )
+        return cache.appointments.sortedWith(compareBy({ appointment -> appointment.appointmentDate }, { appointment -> appointment.appointmentTime }))
     }
 }

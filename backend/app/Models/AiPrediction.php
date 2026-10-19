@@ -6,8 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 
+//one saved breed scan (table: ai_predictions)
 class AiPrediction extends Model
 {
+    //1.setup
+
     //prediction fields that can be saved
     protected $fillable = [
         'user_id',
@@ -33,6 +36,8 @@ class AiPrediction extends Model
         ];
     }
 
+    //4.output
+
     //get the owner of this prediction
     public function user(): BelongsTo
     {
@@ -48,7 +53,11 @@ class AiPrediction extends Model
     //return a public image url instead of its storage path
     public function getImageUrlAttribute(): ?string
     {
-        return $this->image_path ? Storage::disk('public')->url($this->image_path) : null;
+        if (! $this->image_path)
+        {
+            return null;
+        }
+        return Storage::disk('public')->url($this->image_path);
     }
 
     //include the same guidance with every prediction

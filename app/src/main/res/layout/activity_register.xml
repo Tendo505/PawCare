@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--the Create account screen, used by RegisterActivity.kt (shared code in AuthActivity.kt)-->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -26,6 +27,7 @@
             android:text="@string/paw_print"
             android:textSize="38sp" />
 
+        <!--app logo, name and tagline at the top-->
         <TextView
             android:id="@+id/titleText"
             android:layout_width="wrap_content"
@@ -62,6 +64,7 @@
                 android:orientation="vertical"
                 android:padding="22dp">
 
+                <!--form heading inside the white card ("Welcome back" or "Create your account")-->
                 <TextView
                     android:id="@+id/formTitle"
                     android:layout_width="wrap_content"
@@ -71,6 +74,7 @@
                     android:textSize="23sp"
                     android:textStyle="bold" />
 
+                <!--full name input-->
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/nameLayout"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -87,6 +91,7 @@
                         android:inputType="textPersonName" />
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <!--email input; AuthInputValidator checks it before sending-->
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/emailLayout"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -103,6 +108,7 @@
                         android:inputType="textEmailAddress" />
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <!--password input: at least 8 characters with letters and numbers-->
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/passwordLayout"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -120,6 +126,7 @@
                         android:inputType="textPassword" />
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <!--Create account button: AuthActivity.submit() validates, then calls POST /api/register-->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/loginButton"
                     android:layout_width="match_parent"
@@ -129,6 +136,7 @@
                     android:textSize="16sp"
                     app:cornerRadius="16dp" />
 
+                <!--link that switches back to the Sign in screen-->
                 <TextView
                     android:id="@+id/signUpText"
                     android:layout_width="match_parent"

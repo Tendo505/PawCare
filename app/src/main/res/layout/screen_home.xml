@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--screen structure; DashboardActivity supplies account data and button actions-->
+<!--Home tab. HomeScreen.kt fills in the account name, numbers and reminders, and connects the buttons-->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -12,6 +12,7 @@
     android:paddingEnd="20dp"
     android:paddingBottom="32dp"
     tools:context=".DashboardActivity">
+    <!--greeting: "Hello, <first name>"-->
     <TextView
         android:id="@+id/homeGreeting"
         android:layout_width="match_parent"
@@ -31,6 +32,7 @@
         android:textColor="@color/paw_muted"
         android:lineSpacingMultiplier="1.1"
         android:layout_marginTop="4dp" />
+    <!--green welcome banner-->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/homeHero"
         android:layout_width="match_parent"
@@ -67,6 +69,7 @@
                 android:layout_marginTop="8dp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
+    <!--connection card: is Laravel, the database and the AI service working? (filled by HomeScreen.showConnection)-->
     <TextView
         android:id="@+id/homeConnectionTitle"
         android:layout_width="match_parent"
@@ -156,6 +159,7 @@
                 android:layout_marginTop="12dp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
+    <!--four totals: pets, vaccines due, appointments, health records (filled by HomeScreen.showTotals)-->
     <TextView
         android:id="@+id/homeStatsTitle"
         android:layout_width="match_parent"
@@ -269,6 +273,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp">
+        <!--second row of totals: appointments and health records-->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/appointmentStat"
             android:layout_width="0dp"
@@ -364,6 +369,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
+    <!--reminder cards are added into homeReminders by HomeScreen.showReminders-->
     <TextView
         android:id="@+id/homeRemindersTitle"
         android:layout_width="match_parent"
@@ -379,6 +385,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical" />
+    <!--quick action buttons: Add pet, Book visit, Recognize a breed-->
     <TextView
         android:id="@+id/homeActionsTitle"
         android:layout_width="match_parent"

@@ -1,46 +1,54 @@
 package com.example.pawcareai
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.ProgressBar
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.example.pawcareai.dashboard.AiScanScreen
 import com.example.pawcareai.dashboard.DashboardPage
-import com.example.pawcareai.dashboard.DashboardScreens
-import com.example.pawcareai.dashboard.actionButton
-import com.example.pawcareai.dashboard.emptyCard
-import com.example.pawcareai.dashboard.label
-import com.example.pawcareai.dashboard.withTopMargin
+import com.example.pawcareai.dashboard.HealthScreen
+import com.example.pawcareai.dashboard.HomeScreen
+import com.example.pawcareai.dashboard.PetsScreen
 import com.example.pawcareai.data.ApiRequestException
 import com.example.pawcareai.data.AppRepository
 import com.example.pawcareai.data.UserAccount
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
-//hosts the toolbar, bottom navigation and the content area each tab is drawn into
+//the main screen after login: a top bar, a bottom bar with four tabs, and a content area in between
+//each tab is one file that draws the tab and opens its own pop-up forms:
+//HomeScreen, PetsScreen, HealthScreen and AiScanScreen
 class DashboardActivity : AppCompatActivity()
 {
-    //screen components and the tab screens
+    //data, views and the four tab screens
     private lateinit var repository: AppRepository
     private lateinit var toolbar: MaterialToolbar
     private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var page: DashboardPage
-    private lateinit var screens: DashboardScreens
+    private lateinit var homeScreen: HomeScreen
+    private lateinit var petsScreen: PetsScreen
+    private lateinit var healthScreen: HealthScreen
+    private lateinit var aiScanScreen: AiScanScreen
 
-    //select a photo and pass it to the ai scan screen
-    private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null)
+    //opens the phone's photo picker; android requires this to be created with the activity
+    private val photoPicker: ActivityResultLauncher<String> = registerForActivityResult(ActivityResultContracts.GetContent()) { photo: Uri? ->
+        if (photo != null)
         {
-            screens.onPhotoSelected(uri)
+            aiScanScreen.onPhotoSelected(photo)
         }
     }
 
     //1.screen setup
 
-    //create the dashboard and restore the signed-in account
+    //create the dashboard, then restore the signed-in account
     override fun onCreate(savedInstanceState: Bundle?)
     {
         super.onCreate(savedInstanceState)
@@ -51,86 +59,148 @@ class DashboardActivity : AppCompatActivity()
             return
         }
         setContentView(R.layout.activity_dashboard)
-        val contentContainer: FrameLayout = findViewById(R.id.contentContainer)
         toolbar = findViewById(R.id.topAppBar)
-        setToolbarActions()
-
         bottomNavigation = findViewById(R.id.bottomNavigation)
+        val contentContainer: FrameLayout = findViewById(R.id.contentContainer)
         page = DashboardPage(this, repository, toolbar, contentContainer, bottomNavigation)
-        screens = DashboardScreens(page) { imagePicker.launch("image/*") }
+        createScreens()
+
+        setToolbarActions()
         setNavigationActions()
         showLoading()
         restoreAccountRecords()
     }
 
+    //create the four tab screens once
+    //health needs pets (for "Add a pet first"); home needs pets and health (for its quick action buttons)
+    private fun createScreens()
+    {
+        petsScreen = PetsScreen(page)
+        healthScreen = HealthScreen(page, petsScreen)
+        homeScreen = HomeScreen(page, petsScreen, healthScreen)
+        aiScanScreen = AiScanScreen(page)
+    }
+
     //3.process
 
-    //step 1: restore the signed-in account
+    //step 1: ask laravel who owns the saved token
     private fun restoreAccountRecords()
     {
-        repository.restoreSession(::onSessionRestored)
+        repository.restoreSession { result ->
+            onSessionRestored(result)
+        }
     }
 
-    //step 2: load every record once the account is confirmed
+    //step 2: the account is confirmed, so load every record; an expired token goes back to login
     private fun onSessionRestored(result: Result<UserAccount>)
     {
-        if (isFinishing || isDestroyed) return
-        result.onSuccess { repository.refreshData(::onRecordsLoaded) }
-            .onFailure(::showSessionError)
-    }
-
-    //step 3: draw the selected tab and check the services
-    private fun onRecordsLoaded(result: Result<Unit>)
-    {
-        if (isFinishing || isDestroyed) return
-        result.onSuccess {
-            screens.render(bottomNavigation.selectedItemId)
-            screens.refreshSystemHealth()
+        if (isFinishing || isDestroyed)
+        {
+            return
         }
-            .onFailure { showDatabaseError() }
-    }
+        if (result.isSuccess)
+        {
+            repository.refreshData { dataResult ->
+                onRecordsLoaded(dataResult)
+            }
+            return
+        }
 
-    //return to login for an expired token, otherwise offer a retry
-    private fun showSessionError(error: Throwable)
-    {
+        val error: Throwable? = result.exceptionOrNull()
         if (error is ApiRequestException && error.statusCode == 401)
         {
             returnToLogin()
         }
         else
         {
-            showDatabaseError()
+            showLoadError()
+        }
+    }
+
+    //step 3: the records are loaded, so draw the selected tab and check the services
+    private fun onRecordsLoaded(result: Result<Unit>)
+    {
+        if (isFinishing || isDestroyed)
+        {
+            return
+        }
+        if (result.isSuccess)
+        {
+            showTab(bottomNavigation.selectedItemId)
+            homeScreen.refreshConnection()
+        }
+        else
+        {
+            showLoadError()
         }
     }
 
     //4.output
 
-    //display progress while records are loading
+    //a spinner while the records load
     private fun showLoading()
     {
-        toolbar.title = getString(R.string.app_name)
-        val root = page.blankScreen()
+        page.setTitle(R.string.app_name)
+        val root: LinearLayout = page.blankScreen()
         root.gravity = Gravity.CENTER_HORIZONTAL
         root.addView(ProgressBar(this))
-        root.addView(label(getString(R.string.loading_records), 15, true, R.color.paw_text).withTopMargin(14))
+        page.views.addWithTopMargin(root, page.views.label(getString(R.string.loading_records), 15, true, R.color.paw_text), 14)
         page.show(root)
     }
 
-    //retry loading records after a connection error
-    private fun showDatabaseError()
+    //a message and a "Try again" button when the records could not be loaded
+    private fun showLoadError()
     {
-        val root = page.blankScreen()
-        root.addView(emptyCard(getString(R.string.records_load_failed_title), getString(R.string.records_load_failed_message)))
-        root.addView(actionButton(getString(R.string.action_try_again)) {
+        val root: LinearLayout = page.blankScreen()
+        root.addView(page.views.messageCard(getString(R.string.records_load_failed_title), getString(R.string.records_load_failed_message)))
+        val retryButton: MaterialButton = page.views.wideButton(getString(R.string.action_try_again))
+        retryButton.setOnClickListener {
             showLoading()
             restoreAccountRecords()
-        }.withTopMargin(12))
+        }
+        page.views.addWithTopMargin(root, retryButton, 12)
         page.show(root)
     }
 
     //5.navigation
 
-    //confirm sign-out before returning to login
+    //open the phone's photo picker, showing images only
+    fun choosePhoto()
+    {
+        photoPicker.launch("image/*")
+    }
+
+    //draw the screen for a bottom tab
+    private fun showTab(tabId: Int)
+    {
+        if (tabId == R.id.nav_home)
+        {
+            homeScreen.render()
+        }
+        else if (tabId == R.id.nav_pets)
+        {
+            petsScreen.render()
+        }
+        else if (tabId == R.id.nav_health)
+        {
+            healthScreen.render()
+        }
+        else if (tabId == R.id.nav_ai)
+        {
+            aiScanScreen.render()
+        }
+    }
+
+    //tapping a bottom tab draws its screen
+    private fun setNavigationActions()
+    {
+        bottomNavigation.setOnItemSelectedListener { item ->
+            showTab(item.itemId)
+            true
+        }
+    }
+
+    //the "Sign out" item in the top bar menu asks before signing out
     private fun setToolbarActions()
     {
         toolbar.setOnMenuItemClickListener { menuItem ->
@@ -146,32 +216,25 @@ class DashboardActivity : AppCompatActivity()
         }
     }
 
-    //sign out after the user confirms
+    //sign out after the user confirms, then go back to the login screen
     private fun confirmSignOut()
     {
-        val signOutDialog = MaterialAlertDialogBuilder(this)
-        signOutDialog.setTitle(R.string.sign_out_title)
-        signOutDialog.setMessage(R.string.sign_out_message)
-        signOutDialog.setNegativeButton(R.string.action_cancel, null)
-        signOutDialog.setPositiveButton(R.string.sign_out) { _, _ ->
-            repository.logout { returnToLogin() }
+        val builder: MaterialAlertDialogBuilder = MaterialAlertDialogBuilder(this)
+        builder.setTitle(R.string.sign_out_title)
+        builder.setMessage(R.string.sign_out_message)
+        builder.setNegativeButton(R.string.action_cancel, null)
+        builder.setPositiveButton(R.string.sign_out) { dialog, which ->
+            repository.logout {
+                returnToLogin()
+            }
         }
-        signOutDialog.show()
+        builder.show()
     }
 
-    //switch the content container from the selected tab
-    private fun setNavigationActions()
-    {
-        bottomNavigation.setOnItemSelectedListener { item ->
-            screens.render(item.itemId)
-            true
-        }
-    }
-
-    //return to authentication after logout
+    //open the login screen and close the dashboard
     private fun returnToLogin()
     {
-        val loginIntent = Intent(this, LoginActivity::class.java)
+        val loginIntent: Intent = Intent(this, LoginActivity::class.java)
         startActivity(loginIntent)
         finish()
     }

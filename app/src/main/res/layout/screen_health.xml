@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--screen structure; DashboardActivity supplies account data and button actions-->
+<!--Health tab. HealthScreen.kt connects the three "add" buttons and fills the three lists-->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -12,6 +12,7 @@
     android:paddingEnd="20dp"
     android:paddingBottom="32dp"
     tools:context=".DashboardActivity">
+    <!--heading and short description-->
     <TextView
         android:id="@+id/healthTitle"
         android:layout_width="match_parent"
@@ -31,6 +32,7 @@
         android:textColor="@color/paw_muted"
         android:lineSpacingMultiplier="1.1"
         android:layout_marginTop="4dp" />
+    <!--vaccinations: heading with "Add vaccine", then the list-->
     <LinearLayout
         android:id="@+id/vaccinationHeading"
         android:layout_width="match_parent"
@@ -64,6 +66,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical" />
+    <!--appointments: heading with "Book visit", then the list-->
     <LinearLayout
         android:id="@+id/appointmentHeading"
         android:layout_width="match_parent"
@@ -97,6 +100,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical" />
+    <!--medical records: heading with "Add record", then the list-->
     <LinearLayout
         android:id="@+id/medicalHeading"
         android:layout_width="match_parent"

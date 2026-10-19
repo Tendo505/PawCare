@@ -3,52 +3,53 @@ package com.example.pawcareai.data
 import com.example.pawcareai.network.ApiSystemHealth
 import com.example.pawcareai.network.PawCareApi
 
-//laravel, database and ai connection checks
+//asks laravel whether laravel itself, the database and the ai service are working
 class SystemHealthRepository(private val api: PawCareApi)
 {
-    //the most recent connection check
-    private var systemHealthCache: SystemHealth? = null
+    //the result of the most recent check, or null before the first check
+    private var latestHealth: SystemHealth? = null
 
     //3.process
 
-    //check laravel, database and ai connections
+    //check the services (GET health); if laravel cannot be reached, everything is shown as unavailable
     fun checkSystemHealth(onResult: (Result<SystemHealth>) -> Unit)
     {
-        api.systemHealth().enqueueResult { result ->
-            val healthResult: Result<SystemHealth> = result.map { health -> health.toSystemHealth() }
-            healthResult.onSuccess { health ->
-                systemHealthCache = health
-            }
-            healthResult.onFailure {
-                systemHealthCache = SystemHealth(
+        api.systemHealth().enqueue(ApiCallback<ApiSystemHealth>(
+            onSuccess = { apiHealth ->
+                val health: SystemHealth = toSystemHealth(apiHealth)
+                latestHealth = health
+                onResult(Result.success(health))
+            },
+            onFailure = { error ->
+                latestHealth = SystemHealth(
                     overall = "unavailable",
                     laravel = "unavailable",
                     database = "unknown",
                     ai = "unknown"
                 )
+                onResult(Result.failure(error))
             }
-            onResult(healthResult)
-        }
+        ))
     }
 
     //4.output
 
-    //read the most recent connection check
+    //read the most recent check
     fun systemHealth(): SystemHealth?
     {
-        return systemHealthCache
+        return latestHealth
     }
 
-    //convert service connection details for the dashboard
-    private fun ApiSystemHealth.toSystemHealth(): SystemHealth
+    //copy the status of each service into the app's own class
+    private fun toSystemHealth(apiHealth: ApiSystemHealth): SystemHealth
     {
         return SystemHealth(
-            overall = status,
-            laravel = services.laravel.status,
-            database = services.database.status,
-            ai = services.ai.status,
-            aiModelVersion = services.ai.modelVersion.orEmpty(),
-            checkedAt = checkedAt
+            overall = apiHealth.status,
+            laravel = apiHealth.services.laravel.status,
+            database = apiHealth.services.database.status,
+            ai = apiHealth.services.ai.status,
+            aiModelVersion = apiHealth.services.ai.modelVersion ?: "",
+            checkedAt = apiHealth.checkedAt
         )
     }
 }
