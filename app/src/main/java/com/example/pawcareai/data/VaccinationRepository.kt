@@ -11,6 +11,9 @@ class VaccinationRepository(
     private val cache: RecordCache
 )
 {
+    //copies laravel's json classes into the app's record classes
+    private val converter: RecordConverter = RecordConverter(cache)
+
     //2.input
 
     //build the json body laravel expects; empty optional fields are sent as null
@@ -45,7 +48,7 @@ class VaccinationRepository(
 
         saveCall.enqueue(ApiCallback<ApiVaccination>(
             onSuccess = { apiVaccination ->
-                val savedRecord: VaccinationRecord = RecordConverter.toVaccination(apiVaccination)
+                val savedRecord: VaccinationRecord = converter.toVaccination(apiVaccination)
                 putInCache(savedRecord)
                 onResult(Result.success(savedRecord))
             },

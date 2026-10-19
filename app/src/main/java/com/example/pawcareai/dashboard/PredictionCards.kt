@@ -18,7 +18,7 @@ class PredictionCards(private val page: DashboardPage)
     {
         val body: LinearLayout = views.column(18)
         body.addView(views.label(page.dashboard.getString(R.string.ai_best_match), 13, true, R.color.paw_primary))
-        views.addWithTopMargin(body, views.label(TextFormat.breedName(result.breed), 25, true, R.color.paw_text), 4)
+        views.addWithTopMargin(body, views.label(page.textFormat.breedName(result.breed), 25, true, R.color.paw_text), 4)
         views.addWithTopMargin(body, views.label(confidenceText(result), 15, false, R.color.paw_muted), 4)
 
         //the first item in topPredictions is the best match, so the next two are the alternatives
@@ -30,7 +30,7 @@ class PredictionCards(private val page: DashboardPage)
             while (index < result.topPredictions.size && index <= 2)
             {
                 val option: BreedPredictionOption = result.topPredictions[index]
-                val optionText: String = page.dashboard.getString(R.string.ai_other_option, TextFormat.breedName(option.breed), TextFormat.percent(option.confidence))
+                val optionText: String = page.dashboard.getString(R.string.ai_other_option, page.textFormat.breedName(option.breed), page.textFormat.percent(option.confidence))
                 views.addWithTopMargin(body, views.label(optionText, 14, false, R.color.paw_muted), 5)
                 index = index + 1
             }
@@ -54,7 +54,7 @@ class PredictionCards(private val page: DashboardPage)
     fun historyCard(prediction: BreedPrediction): MaterialCardView
     {
         val body: LinearLayout = views.column(16)
-        body.addView(views.label(TextFormat.breedName(prediction.breed), 18, true, R.color.paw_text))
+        body.addView(views.label(page.textFormat.breedName(prediction.breed), 18, true, R.color.paw_text))
         views.addWithTopMargin(body, views.label(confidenceText(prediction), 14, false, R.color.paw_primary), 4)
 
         val details: MutableList<String> = mutableListOf()
@@ -66,7 +66,7 @@ class PredictionCards(private val page: DashboardPage)
         val date: String = prediction.createdAt.substringBefore('T')
         if (date.isNotBlank())
         {
-            details.add(TextFormat.prettyDate(page.dashboard, date))
+            details.add(page.textFormat.prettyDate(date))
         }
         if (details.isNotEmpty())
         {
@@ -81,7 +81,7 @@ class PredictionCards(private val page: DashboardPage)
     //"Cat · 95% confidence"
     private fun confidenceText(prediction: BreedPrediction): String
     {
-        val species: String = TextFormat.capitalise(prediction.species)
-        return page.dashboard.getString(R.string.ai_confidence, species, TextFormat.percent(prediction.confidence))
+        val species: String = page.textFormat.capitalise(prediction.species)
+        return page.dashboard.getString(R.string.ai_confidence, species, page.textFormat.percent(prediction.confidence))
     }
 }

@@ -9,7 +9,8 @@ import com.example.pawcareai.network.ApiVaccination
 
 //copies the json classes sent by laravel into the app's own record classes
 //laravel leaves empty optional fields as null; the app uses "" instead so the screens never see null
-object RecordConverter
+//it keeps the record cache so a breed scan can look up its pet's name
+class RecordConverter(private val cache: RecordCache)
 {
     //4.output
 
@@ -74,7 +75,7 @@ object RecordConverter
     }
 
     //convert one saved breed scan; the pet name comes from laravel, or from the cached pets
-    fun toBreedPrediction(apiPrediction: ApiAiPrediction, cache: RecordCache): BreedPrediction
+    fun toBreedPrediction(apiPrediction: ApiAiPrediction): BreedPrediction
     {
         var petName: String = ""
         val linkedPet: ApiPredictionPet? = apiPrediction.pet

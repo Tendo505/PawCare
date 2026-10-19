@@ -18,6 +18,9 @@ class RecordRefresh(
     private val onResult: (Result<Unit>) -> Unit
 )
 {
+    //copies laravel's json classes into the app's record classes
+    private val converter: RecordConverter = RecordConverter(cache)
+
     //the lists collected by the earlier steps, kept here until the last step finishes
     private var loadedPets: List<ApiPet> = emptyList()
     private var loadedVaccinations: List<ApiVaccination> = emptyList()
@@ -100,31 +103,31 @@ class RecordRefresh(
         cache.pets = mutableListOf()
         for (apiPet in loadedPets)
         {
-            cache.pets.add(RecordConverter.toPet(apiPet))
+            cache.pets.add(converter.toPet(apiPet))
         }
 
         cache.vaccinations = mutableListOf()
         for (apiVaccination in loadedVaccinations)
         {
-            cache.vaccinations.add(RecordConverter.toVaccination(apiVaccination))
+            cache.vaccinations.add(converter.toVaccination(apiVaccination))
         }
 
         cache.medicalRecords = mutableListOf()
         for (apiRecord in loadedMedicalRecords)
         {
-            cache.medicalRecords.add(RecordConverter.toMedicalRecord(apiRecord))
+            cache.medicalRecords.add(converter.toMedicalRecord(apiRecord))
         }
 
         cache.appointments = mutableListOf()
         for (apiAppointment in loadedAppointments)
         {
-            cache.appointments.add(RecordConverter.toAppointment(apiAppointment))
+            cache.appointments.add(converter.toAppointment(apiAppointment))
         }
 
         cache.predictions = mutableListOf()
         for (apiPrediction in predictions)
         {
-            cache.predictions.add(RecordConverter.toBreedPrediction(apiPrediction, cache))
+            cache.predictions.add(converter.toBreedPrediction(apiPrediction))
         }
     }
 }

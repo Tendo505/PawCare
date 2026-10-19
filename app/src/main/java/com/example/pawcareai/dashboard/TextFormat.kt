@@ -8,12 +8,13 @@ import java.time.format.DateTimeParseException
 import java.util.Locale
 
 //turns saved values into the text shown on screen
-object TextFormat
+//create one with TextFormat(context); DashboardPage already has one: page.textFormat
+class TextFormat(private val context: Context)
 {
     //4.output
 
     //"2026-11-03" becomes "3 Nov 2026"; an empty date becomes "Not set"
-    fun prettyDate(context: Context, date: String): String
+    fun prettyDate(date: String): String
     {
         if (date.isBlank())
         {

@@ -239,7 +239,7 @@ class HomeScreen(
     {
         val petName: String = page.repository.petName(vaccination.petId)
         val title: String = page.dashboard.getString(R.string.reminder_vaccination, petName)
-        val dueDate: String = TextFormat.prettyDate(page.dashboard, vaccination.dueDate)
+        val dueDate: String = page.textFormat.prettyDate(vaccination.dueDate)
         val date: String = page.dashboard.getString(R.string.reminder_due, dueDate)
         return views.reminderCard(title, date, vaccination.vaccineName)
     }

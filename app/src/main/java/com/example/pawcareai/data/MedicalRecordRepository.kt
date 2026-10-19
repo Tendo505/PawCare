@@ -11,6 +11,9 @@ class MedicalRecordRepository(
     private val cache: RecordCache
 )
 {
+    //copies laravel's json classes into the app's record classes
+    private val converter: RecordConverter = RecordConverter(cache)
+
     //2.input
 
     //build the json body laravel expects; empty optional fields are sent as null
@@ -44,7 +47,7 @@ class MedicalRecordRepository(
 
         saveCall.enqueue(ApiCallback<ApiMedicalRecord>(
             onSuccess = { apiRecord ->
-                val savedRecord: MedicalRecord = RecordConverter.toMedicalRecord(apiRecord)
+                val savedRecord: MedicalRecord = converter.toMedicalRecord(apiRecord)
                 putInCache(savedRecord)
                 onResult(Result.success(savedRecord))
             },

@@ -14,6 +14,9 @@ class AiScanRepository(
     private val cache: RecordCache
 )
 {
+    //copies laravel's json classes into the app's record classes
+    private val converter: RecordConverter = RecordConverter(cache)
+
     //2.input
 
     //put the photo into the "image" field of a multipart form, like a file upload on a website
@@ -51,7 +54,7 @@ class AiScanRepository(
 
         api.createAiPrediction(imagePart, petPart).enqueue(ApiCallback<ApiAiPrediction>(
             onSuccess = { apiPrediction ->
-                val prediction: BreedPrediction = RecordConverter.toBreedPrediction(apiPrediction, cache)
+                val prediction: BreedPrediction = converter.toBreedPrediction(apiPrediction)
                 putInCache(prediction)
                 onResult(Result.success(prediction))
             },

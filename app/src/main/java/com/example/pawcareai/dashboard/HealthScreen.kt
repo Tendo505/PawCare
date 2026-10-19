@@ -382,7 +382,7 @@ class HealthScreen(
     private fun vaccinationCard(record: VaccinationRecord): MaterialCardView
     {
         val petName: String = page.repository.petName(record.petId)
-        val dueDate: String = TextFormat.prettyDate(page.dashboard, record.dueDate)
+        val dueDate: String = page.textFormat.prettyDate(record.dueDate)
         val subtitle: String = page.dashboard.getString(R.string.vaccination_subtitle, petName, dueDate)
 
         //join the details that are filled in with " · "
@@ -394,7 +394,7 @@ class HealthScreen(
         }
         if (record.administeredDate.isNotBlank())
         {
-            val givenDate: String = TextFormat.prettyDate(page.dashboard, record.administeredDate)
+            val givenDate: String = page.textFormat.prettyDate(record.administeredDate)
             details.add(page.dashboard.getString(R.string.vaccination_given, givenDate))
         }
         if (record.notes.isNotBlank())
@@ -436,7 +436,7 @@ class HealthScreen(
     private fun appointmentCard(appointment: Appointment): MaterialCardView
     {
         val petName: String = page.repository.petName(appointment.petId)
-        val date: String = TextFormat.prettyDate(page.dashboard, appointment.appointmentDate)
+        val date: String = page.textFormat.prettyDate(appointment.appointmentDate)
         val subtitle: String = page.dashboard.getString(R.string.appointment_subtitle, petName, date, appointment.appointmentTime)
 
         //join the details that are filled in with " · "
@@ -490,7 +490,7 @@ class HealthScreen(
     private fun medicalCard(record: MedicalRecord): MaterialCardView
     {
         val petName: String = page.repository.petName(record.petId)
-        val visitDate: String = TextFormat.prettyDate(page.dashboard, record.visitDate)
+        val visitDate: String = page.textFormat.prettyDate(record.visitDate)
         val subtitle: String = page.dashboard.getString(R.string.medical_subtitle, petName, visitDate)
 
         //join the details that are filled in with " · "

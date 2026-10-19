@@ -11,6 +11,9 @@ class AppointmentRepository(
     private val cache: RecordCache
 )
 {
+    //copies laravel's json classes into the app's record classes
+    private val converter: RecordConverter = RecordConverter(cache)
+
     //2.input
 
     //build the json body laravel expects; the time is sent as HH:MM
@@ -45,7 +48,7 @@ class AppointmentRepository(
 
         saveCall.enqueue(ApiCallback<ApiAppointment>(
             onSuccess = { apiAppointment ->
-                val savedAppointment: Appointment = RecordConverter.toAppointment(apiAppointment)
+                val savedAppointment: Appointment = converter.toAppointment(apiAppointment)
                 putInCache(savedAppointment)
                 onResult(Result.success(savedAppointment))
             },

@@ -97,7 +97,7 @@ class PetsScreen(private val page: DashboardPage)
         var savedWeight: String? = null
         if (pet != null && pet.weightKg > 0)
         {
-            savedWeight = TextFormat.weight(pet.weightKg)
+            savedWeight = page.textFormat.weight(pet.weightKg)
         }
 
         nameInput = form.addTextField(body, text(R.string.field_pet_name), pet?.name, 1)
@@ -219,8 +219,8 @@ class PetsScreen(private val page: DashboardPage)
         val body: LinearLayout = views.column(18)
         body.addView(petHeading(pet))
 
-        val weight: String = TextFormat.weight(pet.weightKg)
-        val birthDate: String = TextFormat.prettyDate(page.dashboard, pet.birthDate)
+        val weight: String = page.textFormat.weight(pet.weightKg)
+        val birthDate: String = page.textFormat.prettyDate(pet.birthDate)
         val detailsText: String = page.dashboard.getString(R.string.pet_details, pet.sex, weight, birthDate)
         val details: TextView = views.label(detailsText, 14, false, R.color.paw_muted)
         details.id = R.id.petDetails

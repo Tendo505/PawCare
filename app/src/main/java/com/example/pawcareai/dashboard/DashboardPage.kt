@@ -21,9 +21,10 @@ class DashboardPage(
     private val bottomNavigation: BottomNavigationView
 )
 {
-    //shared builders for cards and forms
+    //shared builders for cards and forms, and the text formatter
     val views: ViewMaker = ViewMaker(dashboard)
     val form: FormBuilder = FormBuilder(dashboard, views)
+    val textFormat: TextFormat = TextFormat(dashboard)
 
     //1.screen setup
 

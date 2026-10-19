@@ -11,6 +11,9 @@ class PetRepository(
     private val cache: RecordCache
 )
 {
+    //copies laravel's json classes into the app's record classes
+    private val converter: RecordConverter = RecordConverter(cache)
+
     //2.input
 
     //build the json body laravel expects; empty optional fields are sent as null
@@ -52,7 +55,7 @@ class PetRepository(
 
         saveCall.enqueue(ApiCallback<ApiPet>(
             onSuccess = { apiPet ->
-                val savedPet: Pet = RecordConverter.toPet(apiPet)
+                val savedPet: Pet = converter.toPet(apiPet)
                 putInCache(savedPet)
                 onResult(Result.success(savedPet))
             },
