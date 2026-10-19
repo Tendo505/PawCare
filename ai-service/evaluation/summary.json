@@ -1,0 +1,9 @@
+{
+  "split": "oxford_iiit_pet test",
+  "test_images": 3669,
+  "accuracy": 0.7795,
+  "macro_f1": 0.7624,
+  "average_inference_ms_per_image": 62.6,
+  "timing_samples": 50,
+  "model": "models\\pawcare_breed_classifier.keras"
+}

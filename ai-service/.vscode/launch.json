@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Start AI service (port 8001)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": ["app.main:app", "--host", "127.0.0.1", "--port", "8001"],
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true
+        },
+        {
+            "name": "Evaluate the model (test split)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}\\evaluate.py",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
