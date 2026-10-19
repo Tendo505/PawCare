@@ -5,8 +5,7 @@ __pycache__/
 .pytest_cache/
 *.log
 
-# Trained model weights and datasets are too large for git
-models/*.keras
+# Datasets are too large for git (the trained model is included for submission)
 models/*.h5
 models/*.weights.h5
 tensorflow_datasets/
